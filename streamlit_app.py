@@ -1,36 +1,8 @@
-# File: streamlit_app.py
-
 import streamlit as st
 import pandas as pd
 import json
 
-# En streamlit_app.py, justo después de imports:
-
-@st.cache_data(show_spinner=False)
-def get_conceptos(pregunta: str):
-    return extraer_conceptos(pregunta)
-
-@st.cache_data(show_spinner=False)
-def get_fragmentos(pregunta: str, top_k: int = 3):
-    from cd_modules.core.pathrag_pi import recuperar_fragmentos
-    return recuperar_fragmentos(pregunta, top_k)
-
-@st.cache_data(show_spinner=False)
-def get_tree(pregunta: str, max_depth: int, max_width: int):
-    ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
-    return ie.generate()
-
-# Y en lugar de llamarlos directamente:
-conceptos = get_conceptos(pregunta)
-frags    = get_fragmentos(pregunta, top_k=3)
-tree     = get_tree(pregunta, max_depth, max_width)
-
-# Intentamos importar weasyprint para PDF; si no está, lo ignoramos
-try:
-    from weasyprint import HTML
-except ImportError:
-    HTML = None
-
+# --- IMPORTS DE MÓDULOS PROPIOS ---
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
@@ -41,7 +13,21 @@ st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
 st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
 st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
 
-# --- cumplimiento MVP: Declaración de valor ---
+# --- CACHES PARA MEJORAR RENDIMIENTO ---
+@st.cache_data(show_spinner=False)
+def get_conceptos(pregunta: str):
+    return extraer_conceptos(pregunta)
+
+@st.cache_data(show_spinner=False)
+def get_fragmentos(pregunta: str, top_k: int = 3):
+    return recuperar_fragmentos(pregunta, top_k)
+
+@st.cache_data(show_spinner=False)
+def get_tree(pregunta: str, max_depth: int, max_width: int):
+    ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
+    return ie.generate()
+
+# --- DECLARACIÓN DE VALOR ---
 st.markdown(
     """
     ### ✅ Este MVP Cumple con:
@@ -55,13 +41,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- SIDEBAR: Parámetros del árbol y ejemplos ---
+# --- SIDEBAR: INPUTS DEL USUARIO ---
 st.sidebar.header("⚙️ Configuración del árbol")
 pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
 example = st.sidebar.selectbox(
-    "Ejemplos de consulta", 
+    "Ejemplos de consulta",
     ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"]
 )
 if example != "Ninguno":
@@ -72,31 +58,16 @@ if example != "Ninguno":
     }
     pregunta = templates[example]
 
-# --- Extracción de conceptos con spaCy ---
-conceptos = extraer_conceptos(pregunta)
-st.subheader("🧩 Conceptos extraídos (NLP)")
-st.write(conceptos or "—")
+# --- EJECUCIÓN DEL PIPELINE ---
+conceptos = get_conceptos(pregunta)
+frags = get_fragmentos(pregunta, top_k=3)
+tree = get_tree(pregunta, max_depth, max_width)
 
-# --- PathRAG: fragmentos recuperados ---
-st.subheader("🔍 Fragmentos recuperados (PathRAG)")
-frags = recuperar_fragmentos(pregunta, top_k=3)
-if frags:
-    for f in frags:
-        with st.expander(f["titulo"]):
-            st.markdown(f"> {f['fragmento']}")
-            st.markdown(f"[Ver fuente]({f['url']})")
-else:
-    st.info("No se recuperaron fragmentos relevantes.")
-
-# --- Generación del árbol ---
-ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
-tree = ie.generate()
-
-# --- Session State para el Reasoning Tracker ---
+# --- Sesión para tracker ---
 if "tracker" not in st.session_state:
     st.session_state.tracker = []
 
-# --- UX: badge de validación ---
+# --- Funciones Auxiliares ---
 def badge_validacion(tipo):
     if tipo == "validada":
         return '<span style="color: white; background-color: #28a745; padding: 3px 8px; border-radius: 6px;">✅ Validada</span>'
@@ -108,7 +79,6 @@ def badge_validacion(tipo):
 def esta_respondido(nodo):
     return any(x["Subpregunta"] == nodo for x in st.session_state.tracker)
 
-# --- Contadores ---
 def contar_nodos(tree):
     total = 0
     def contar(hijos):
@@ -121,11 +91,9 @@ def contar_nodos(tree):
         contar(hijos)
     return total
 
-
 def contar_respondidos():
     return len(st.session_state.tracker)
 
-# --- Generación masiva de contexto ---
 def generar_todo(tree):
     def gen(hijos):
         for nodo, subhijos in hijos.items():
@@ -149,119 +117,95 @@ def generar_todo(tree):
             })
         gen(hijos)
 
-# --- Visualización del árbol ---
-def mostrar_arbol(nodo, hijos, nivel=0):
-    margen = "  " * nivel
-    data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
-    with st.container():
-        col1, col2 = st.columns([9, 1])
-        with col1:
-            st.markdown(f"{margen}🔹 **{nodo}**")
-        with col2:
+# --- Renderizado de la App ---
+# 1) Conceptos
+st.subheader("🧩 Conceptos extraídos (NLP)")
+st.write(conceptos or "—")
+
+# 2) Fragmentos RAG
+st.subheader("🔍 Fragmentos recuperados (PathRAG)")
+if frags:
+    for f in frags:
+        with st.expander(f["titulo"]):
+            st.markdown(f"> {f['fragmento']}" )
+            st.markdown(f"[Ver fuente]({f['url']})")
+else:
+    st.info("No se recuperaron fragmentos relevantes.")
+
+# 3) Árbol de razonamiento
+st.subheader("🔍 Árbol de razonamiento jurídico")
+for raiz, hijos in tree.items():
+    # Visualizamos recursivamente
+    def mostrar(nodo, sub, nivel=0):
+        margen = "  " * nivel
+        data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
+        with st.container():
+            c1, c2 = st.columns([9,1])
+            c1.markdown(f"{margen}🔹 **{nodo}**")
+            if data: c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
             if data:
-                st.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
-        if data:
-            st.info(f"{margen}📘 *{data['Contexto']}*")
-            st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
-        else:
-            if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}"):
-                with st.spinner("Generando contexto..."):
+                st.info(f"{margen}📘 *{data['Contexto']}*")
+                st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
+            else:
+                if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}"):
                     nuevo = generar_contexto(nodo)
                     st.session_state.tracker.append({
                         "Subpregunta": nodo,
                         "Contexto": nuevo["contexto"],
                         "Fuente": nuevo["fuente"],
-                        "Validación": nuevo.get("validacion", "no validada")
+                        "Validación": nuevo.get("validacion","no validada")
                     })
                     st.experimental_rerun()
-    for hijo, subhijos in hijos.items():
-        mostrar_arbol(hijo, subhijos, nivel + 1)
+        for h, s in sub.items(): mostrar(h, s, nivel+1)
+    mostrar(raiz, hijos)
 
-# --- Botón de generación global ---
-col_gen, _ = st.columns([4, 6])
-with col_gen:
+# 4) Barra de progreso y botón global
+total = contar_nodos(tree)
+resp = contar_respondidos()
+colp, _ = st.columns([5,5])
+colp.progress(resp/total if total else 0, text=f"Progreso: {resp}/{total}")
+dummy, colb = st.columns([6,4])
+with colb:
     st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
 
-# --- Barra de progreso ---
-total = contar_nodos(tree)
-respondidos = contar_respondidos()
-st.progress(min(respondidos / total, 1.0) if total else 0, text=f"Progreso: {respondidos}/{total} respondidos")
-
-# --- Árbol de razonamiento ---
-st.subheader("🔍 Árbol de razonamiento jurídico")
-for raiz, hijos in tree.items():
-    mostrar_arbol(raiz, hijos)
-
-# --- Reasoning Tracker y descargas ---
+# 5) Tracker y descargas
 st.subheader("🧾 Reasoning Tracker")
-if respondidos > 0:
+if resp>0:
     df = pd.DataFrame(st.session_state.tracker)
     st.dataframe(df, use_container_width=True)
-
-    # CSV
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Descargar como CSV", data=csv, file_name="reasoning_tracker.csv", mime="text/csv")
-
-    # Markdown
-    md_lines = ["# Informe de Razonamiento\n"]
-    for paso in st.session_state.tracker:
-        linea = f"- **{paso['Subpregunta']}**: {paso['Contexto']} (Fuente: {paso['Fuente']}, Validación: {paso['Validación']})"
-        md_lines.append(linea)
-    md_report = "\n".join(md_lines)
-    st.download_button(
-        label="📥 Descargar Informe (Markdown)",
-        data=md_report,
-        file_name="informe_razonamiento.md",
-        mime="text/markdown"
+    csv = df.to_csv(index=False).encode()
+    st.download_button("📥 CSV", data=csv, file_name="tracker.csv", mime="text/csv")
+    md = "# Informe de Razonamiento\n" + "\n".join(
+        f"- **{r['Subpregunta']}**: {r['Contexto']} (Fuente: {r['Fuente']}, Val: {r['Validación']})"
+        for r in st.session_state.tracker
     )
-
-    # PDF (solo si weasyprint está disponible)
+    st.download_button("📥 MD", data=md, file_name="informe.md", mime="text/markdown")
     if HTML:
-        html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        st.download_button(
-            label="📥 Descargar Informe (PDF)",
-            data=pdf_bytes,
-            file_name="informe_razonamiento.pdf",
-            mime="application/pdf"
-        )
-
-    # JSON
-    logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
-    st.download_button(
-        label="📥 Descargar Logs (JSON)",
-        data=logs_json,
-        file_name="logs_razonamiento.json",
-        mime="application/json"
-    )
+        html = "<html><body>"+md.replace("\n","<br>")+"</body></html>"
+        pdf = HTML(string=html).write_pdf()
+        st.download_button("📥 PDF", data=pdf, file_name="informe.pdf", mime="application/pdf")
+    js = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
+    st.download_button("📥 JSON", data=js, file_name="logs.json", mime="application/json")
 else:
     st.info("Aún no hay pasos registrados.")
 
-# --- AYUDA Y EXPLICACIONES ---
-with st.expander("📘 ¿Qué es la validación epistémica?"):
-    st.markdown(
-        """
-        - ✅ **Validada**: Hay respaldo legal o jurisprudencial claro.
-        - ⚠️ **Parcial**: Respaldada por doctrina o interpretación indirecta.
-        - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
-        """
-    )
-
+# 6) Ayudas
+e with st.expander("📘 ¿Qué es la validación epistémica?"):
+    st.markdown("""
+    - ✅ Validada: respaldo legal claro.
+    - ⚠️ Parcial: interpretación indirecta.
+    - ❌ No validada: sin respaldo.
+    """)
 with st.expander("⚙️ ¿Qué simula este MVP?"):
-    st.markdown(
-        """
-        1. Estructura lógica tipo árbol.
-        2. Genera contexto para cada nodo (simulado o vía LLM).
-        3. Añade fuente y validación epistémica.
-        4. Permite exportar el razonamiento.
-        5. Prepara la integración futura con LLM, PathRAG, corpus legal.
-        """
-    )
-
+    st.markdown("""
+    1. Árbol jerárquico.
+    2. Contexto por nodo.
+    3. Fuentes y validación.
+    4. Exportación múltiple.
+    5. Pipeline futuro.
+    """)
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
-    st.markdown(
-        """
-        - Registra cada paso, fuente y nivel de validación.
-        - Permite auditar decisiones jurídicas generadas.
-        """
-    )
+    st.markdown("""
+    - Registro paso a paso.
+    - Auditable y exportable.
+    """)
