@@ -2,30 +2,29 @@
 
 import re
 
-# Lista muy básica de términos PI (puedes ampliarla)
+# Lista básica de términos PI (puedes ampliarla)
 KEYWORDS = [
-    "patente", "software", "IA", "marca", "sonora", "diseño", "industrial",
-    "derecho", "autor", "copyright", "UE", "España", "CJEU", "BOE", "OEPM"
+    "patente", "software", "ia", "marca", "sonora", "diseño", "industrial",
+    "derecho", "autor", "copyright", "ue", "españa", "cjeu", "boe", "oepm"
 ]
 
 def extraer_conceptos(texto: str) -> list[str]:
     """
-    Extrae conceptos clave buscando keywords y sustantivos compuestos.
-    Mucho más ligero que spaCy, ideal para despliegue rápido.
+    Extrae conceptos clave buscando keywords y tokens compuestos ligeros.
+    Mucho más rápido y sin dependencias externas.
     """
-    texto_lower = texto.lower()
+    texto_low = texto.lower()
     encontrados = set()
 
-    # 1) Keywords explícitas
+    # 1) Buscamos keywords
     for kw in KEYWORDS:
-        if kw.lower() in texto_lower:
+        if kw in texto_low:
             encontrados.add(kw)
 
-    # 2) Tokens compuestos (2–3 palabras) como "reconocimiento de voz"
-    for match in re.finditer(r"\\b([a-záéíóúñ]+(?:\\s+de)?(?:\\s+[a-záéíóúñ]+)?)\\b", texto_lower):
+    # 2) Tokens de 2–3 palabras (e.g. 'reconocimiento de voz')
+    for match in re.finditer(r"\b([a-záéíóúñ]+(?:\s+de)?(?:\s+[a-záéíóúñ]+)?)\b", texto_low):
         token = match.group(1).strip()
-        # descartamos stopwords muy comunes
-        if token not in ("de", "la", "el", "y", "en", "para") and len(token) > 4:
+        if len(token) > 4 and token not in ("de", "la", "el", "y", "en", "para"):
             encontrados.add(token)
 
     return list(encontrados)
