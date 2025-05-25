@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 import json
@@ -7,7 +8,6 @@ try:
     from weasyprint import HTML
 except ImportError:
     HTML = None
-
 
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
@@ -38,7 +38,7 @@ pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
 example = st.sidebar.selectbox(
-    "Ejemplos de consulta", 
+    "Ejemplos de consulta",
     ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"]
 )
 if example != "Ninguno":
@@ -48,6 +48,14 @@ if example != "Ninguno":
         "Convenios internacionales derechos autor": "¿Qué convenios internacionales regulan el derecho de autor en España?"
     }
     pregunta = templates[example]
+
+# --- Extracción de conceptos con spaCy ---
+conceptos = extraer_conceptos(pregunta)
+st.subheader("🧩 Conceptos extraídos (NLP)")
+if conceptos:
+    st.write(conceptos)
+else:
+    st.info("No se han podido extraer conceptos relevantes.")
 
 # --- Generación del árbol ---
 ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
@@ -157,9 +165,11 @@ st.subheader("🧾 Reasoning Tracker")
 if respondidos > 0:
     df = pd.DataFrame(st.session_state.tracker)
     st.dataframe(df, use_container_width=True)
+
     # CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Descargar como CSV", data=csv, file_name="reasoning_tracker.csv", mime="text/csv")
+
     # Markdown
     md_lines = ["# Informe de Razonamiento\n"]
     for paso in st.session_state.tracker:
@@ -167,49 +177,54 @@ if respondidos > 0:
         md_lines.append(linea)
     md_report = "\n".join(md_lines)
     st.download_button(
-        label="📥 Descargar Informe (Markdown)", data=md_report,
-        file_name="informe_razonamiento.md", mime="text/markdown"
+        label="📥 Descargar Informe (Markdown)",
+        data=md_report,
+        file_name="informe_razonamiento.md",
+        mime="text/markdown"
     )
+
     # PDF (solo si weasyprint está disponible)
     if HTML:
         html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
         pdf_bytes = HTML(string=html_content).write_pdf()
         st.download_button(
-            label="📥 Descargar Informe (PDF)", data=pdf_bytes,
-            file_name="informe_razonamiento.pdf", mime="application/pdf"
+            label="📥 Descargar Informe (PDF)",
+            data=pdf_bytes,
+            file_name="informe_razonamiento.pdf",
+            mime="application/pdf"
         )
+
     # JSON
     logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
     st.download_button(
-        label="📥 Descargar Logs (JSON)", data=logs_json,
-        file_name="logs_razonamiento.json", mime="application/json"
+        label="📥 Descargar Logs (JSON)",
+        data=logs_json,
+        file_name="logs_razonamiento.json",
+        mime="application/json"
     )
 else:
     st.info("Aún no hay pasos registrados.")
 
 # --- AYUDA Y EXPLICACIONES ---
 with st.expander("📘 ¿Qué es la validación epistémica?"):
-    st.markdown(
-        """
+    st.markdown("""
         - ✅ **Validada**: Hay respaldo legal o jurisprudencial claro.
         - ⚠️ **Parcial**: Respaldada por doctrina o interpretación indirecta.
         - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
-        """
-    )
+    """)
+
 with st.expander("⚙️ ¿Qué simula este MVP?"):
-    st.markdown(
-        """
+    st.markdown("""
         1. Estructura lógica tipo árbol.
         2. Genera contexto para cada nodo (simulado o vía LLM).
         3. Añade fuente y validación epistémica.
         4. Permite exportar el razonamiento.
         5. Prepara la integración futura con LLM, PathRAG, corpus legal.
-        """
-    )
+    """)
+
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
-    st.markdown(
-        """
+    st.markdown("""
         - Registra cada paso, fuente y nivel de validación.
         - Permite auditar decisiones jurídicas generadas.
-        """
-    )
+    """)
+```
