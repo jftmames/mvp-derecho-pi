@@ -127,7 +127,7 @@ st.subheader("🔍 Fragmentos recuperados (PathRAG)")
 if frags:
     for f in frags:
         with st.expander(f["titulo"]):
-            st.markdown(f"> {f['fragmento']}" )
+            st.markdown(f"> {f['fragmento']}")
             st.markdown(f"[Ver fuente]({f['url']})")
 else:
     st.info("No se recuperaron fragmentos relevantes.")
@@ -135,14 +135,14 @@ else:
 # 3) Árbol de razonamiento
 st.subheader("🔍 Árbol de razonamiento jurídico")
 for raiz, hijos in tree.items():
-    # Visualizamos recursivamente
     def mostrar(nodo, sub, nivel=0):
         margen = "  " * nivel
         data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
         with st.container():
             c1, c2 = st.columns([9,1])
             c1.markdown(f"{margen}🔹 **{nodo}**")
-            if data: c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
+            if data:
+                c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
             if data:
                 st.info(f"{margen}📘 *{data['Contexto']}*")
                 st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
@@ -156,7 +156,8 @@ for raiz, hijos in tree.items():
                         "Validación": nuevo.get("validacion","no validada")
                     })
                     st.experimental_rerun()
-        for h, s in sub.items(): mostrar(h, s, nivel+1)
+        for h, s in sub.items():
+            mostrar(h, s, nivel+1)
     mostrar(raiz, hijos)
 
 # 4) Barra de progreso y botón global
@@ -170,7 +171,7 @@ with colb:
 
 # 5) Tracker y descargas
 st.subheader("🧾 Reasoning Tracker")
-if resp>0:
+if resp > 0:
     df = pd.DataFrame(st.session_state.tracker)
     st.dataframe(df, use_container_width=True)
     csv = df.to_csv(index=False).encode()
@@ -181,7 +182,7 @@ if resp>0:
     )
     st.download_button("📥 MD", data=md, file_name="informe.md", mime="text/markdown")
     if HTML:
-        html = "<html><body>"+md.replace("\n","<br>")+"</body></html>"
+        html = "<html><body>" + md.replace("\n","<br>") + "</body></html>"
         pdf = HTML(string=html).write_pdf()
         st.download_button("📥 PDF", data=pdf, file_name="informe.pdf", mime="application/pdf")
     js = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
@@ -190,22 +191,28 @@ else:
     st.info("Aún no hay pasos registrados.")
 
 # 6) Ayudas
-e with st.expander("📘 ¿Qué es la validación epistémica?"):
-    st.markdown("""
-    - ✅ Validada: respaldo legal claro.
-    - ⚠️ Parcial: interpretación indirecta.
-    - ❌ No validada: sin respaldo.
-    """)
+with st.expander("📘 ¿Qué es la validación epistémica?"):
+    st.markdown(
+        """
+        - ✅ Validada: respaldo legal claro.
+        - ⚠️ Parcial: interpretación indirecta.
+        - ❌ No validada: sin respaldo.
+        """
+    )
 with st.expander("⚙️ ¿Qué simula este MVP?"):
-    st.markdown("""
-    1. Árbol jerárquico.
-    2. Contexto por nodo.
-    3. Fuentes y validación.
-    4. Exportación múltiple.
-    5. Pipeline futuro.
-    """)
+    st.markdown(
+        """
+        1. Árbol jerárquico.
+        2. Contexto por nodo.
+        3. Fuentes y validación.
+        4. Exportación múltiple.
+        5. Pipeline futuro.
+        """
+    )
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
-    st.markdown("""
-    - Registro paso a paso.
-    - Auditable y exportable.
-    """)
+    st.markdown(
+        """
+        - Registro paso a paso.
+        - Auditable y exportable.
+        """
+    )
