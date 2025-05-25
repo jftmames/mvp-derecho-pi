@@ -169,7 +169,8 @@ for raiz, hijos in tree.items():
 total = contar_nodos(tree)
 resp = contar_respondidos()
 colp, _ = st.columns([5,5])
-colp.progress(resp/total if total else 0, text=f"Progreso: {resp}/{total}")
+ratio = resp/total if total else 0
+colp.progress(min(max(ratio, 0.0), 1.0), text=f"Progreso: {resp}/{total}")
 dummy, colb = st.columns([6,4])
 with colb:
     st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
