@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import json
+
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
 
@@ -31,6 +33,7 @@ def badge_validacion(tipo):
     else:
         return '<span style="color: white; background-color: #dc3545; padding: 3px 8px; border-radius: 6px;">❌ No validada</span>'
 
+
 def esta_respondido(nodo):
     return any(x["Subpregunta"] == nodo for x in st.session_state.tracker)
 
@@ -47,6 +50,7 @@ def contar_nodos(tree):
         contar(hijos)
     return total
 
+
 def contar_respondidos():
     return len(st.session_state.tracker)
 
@@ -60,7 +64,7 @@ def generar_todo(tree):
                     "Subpregunta": nodo,
                     "Contexto": data["contexto"],
                     "Fuente": data["fuente"],
-                    "Validación": data["validacion"]
+                    "Validación": data.get("validacion", "no validada")
                 })
             gen(subhijos)
     for raiz, hijos in tree.items():
@@ -70,7 +74,7 @@ def generar_todo(tree):
                 "Subpregunta": raiz,
                 "Contexto": data["contexto"],
                 "Fuente": data["fuente"],
-                "Validación": data["validacion"]
+                "Validación": data.get("validacion", "no validada")
             })
         gen(hijos)
 
@@ -98,9 +102,9 @@ def mostrar_arbol(nodo, hijos, nivel=0):
                         "Subpregunta": nodo,
                         "Contexto": nuevo["contexto"],
                         "Fuente": nuevo["fuente"],
-                        "Validación": nuevo["validacion"]
+                        "Validación": nuevo.get("validacion", "no validada")
                     })
-                    st.rerun()
+                    st.experimental_rerun()
 
     for hijo, subhijos in hijos.items():
         mostrar_arbol(hijo, subhijos, nivel + 1)
@@ -125,10 +129,8 @@ if respondidos > 0:
     st.dataframe(df, use_container_width=True)
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Descargar como CSV", data=csv, file_name="reasoning_tracker.csv", mime="text/csv")
-        import json
 
-    # 1) Botón para descargar el informe en Markdown
-    #    Aquí montamos un texto .md con títulos y bullets de cada paso.
+    # Informe en Markdown
     md_lines = ["# Informe de Razonamiento\n"]
     for paso in st.session_state.tracker:
         linea = f"- **{paso['Subpregunta']}**: {paso['Contexto']} (Fuente: {paso['Fuente']}, Validación: {paso['Validación']})"
@@ -141,7 +143,7 @@ if respondidos > 0:
         mime="text/markdown"
     )
 
-    # 2) Botón para descargar los logs en JSON
+    # Logs en JSON
     logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
     st.download_button(
         label="📥 Descargar Logs (JSON)",
@@ -149,7 +151,6 @@ if respondidos > 0:
         file_name="logs_razonamiento.json",
         mime="application/json"
     )
-
 else:
     st.info("Aún no hay pasos registrados.")
 
@@ -175,4 +176,3 @@ with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
     - Registra cada paso, fuente y nivel de validación.
     - Permite auditar decisiones jurídicas generadas.
     """)
-
