@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-import markdown as mdlib
+
 from weasyprint import HTML
 
 from cd_modules.core.inquiry_engine import InquiryEngine
@@ -164,10 +164,17 @@ if respondidos > 0:
         mime="text/markdown"
     )
 
-    # Informe en PDF
-    html_content = mdlib.markdown(md_report)
+        # Informe en PDF
+    # Generamos HTML básico a partir del Markdown
+    html_content = "<html><body>" + md_report.replace("
+", "<br>") + "</body></html>"
     pdf_bytes = HTML(string=html_content).write_pdf()
     st.download_button(
+        label="📥 Descargar Informe (PDF)",
+        data=pdf_bytes,
+        file_name="informe_razonamiento.pdf",
+        mime="application/pdf"
+    )
         label="📥 Descargar Informe (PDF)",
         data=pdf_bytes,
         file_name="informe_razonamiento.pdf",
