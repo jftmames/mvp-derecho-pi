@@ -164,12 +164,16 @@ if respondidos > 0:
         mime="text/markdown"
     )
 
-        # Informe en PDF
+            # Informe en PDF
     # Generamos HTML básico a partir del Markdown
-    html_content = "<html><body>" + md_report.replace("
-", "<br>") + "</body></html>"
+    html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
     pdf_bytes = HTML(string=html_content).write_pdf()
     st.download_button(
+        label="📥 Descargar Informe (PDF)",
+        data=pdf_bytes,
+        file_name="informe_razonamiento.pdf",
+        mime="application/pdf"
+    )
         label="📥 Descargar Informe (PDF)",
         data=pdf_bytes,
         file_name="informe_razonamiento.pdf",
