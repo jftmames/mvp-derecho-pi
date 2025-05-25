@@ -1,26 +1,37 @@
-# cd_modules/core/contextual_generator.py
+# File: cd_modules/core/contextual_generator.py
 
-from cd_modules.core.pathrag_pi import recuperar_nodo_relevante
+from cd_modules.core.pathrag_pi import recuperar_fragmentos
 from cd_modules.core.validador_epistemico import validar_contexto
 
-def generar_contexto(nodo):
+def generar_contexto(nodo: str) -> dict:
     """
-    Simula la generación contextual legal.
-    """
-    info = recuperar_nodo_relevante(nodo)
-    ejemplo = ""
+    Genera el contexto legal para un nodo concreto usando PathRAG y valida la coherencia.
 
-    if info["nodo"] == "Autoría en PI":
-        ejemplo = "Según la Ley de Propiedad Intelectual, puede ser autor cualquier persona física que cree una obra original."
-    elif info["nodo"] == "Obra colectiva":
-        ejemplo = "Una obra colectiva es aquella creada por iniciativa y bajo la coordinación de una persona física o jurídica."
+    :param nodo: Subpregunta o concepto a contextualizar.
+    :return: Diccionario con claves:
+        - contexto: fragmento legal recuperado.
+        - fuente: URL de la fuente oficial.
+        - validacion: resultado de la validación epistémica.
+        - camino: lista de títulos de fuentes consultadas.
+    """
+    # Recuperamos el fragmento más relevante
+    frags = recuperar_fragmentos(nodo, top_k=1)
+    if frags:
+        frag = frags[0]
+        contexto = frag.get("fragmento", "")
+        fuente = frag.get("url", "")
+        camino = [frag.get("titulo", nodo)]
     else:
-        ejemplo = "La propiedad intelectual protege obras originales en el ámbito literario, artístico o científico."
+        contexto = "No se encontró información relevante para este concepto."
+        fuente = ""
+        camino = []
 
-    validacion = validar_contexto(nodo, ejemplo)
+    # Validación epistémica: comprueba respaldo en ontología/corpus
+    validacion = validar_contexto(nodo, contexto)
 
     return {
-        "contexto": ejemplo,
-        "fuente": f"Grafo PI → {' → '.join(info['camino'])}",
-        "validacion": validacion
+        "contexto": contexto,
+        "fuente": fuente,
+        "validacion": validacion,
+        "camino": camino
     }
