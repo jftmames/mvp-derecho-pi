@@ -2,15 +2,13 @@
 
 import spacy
 
-# Cargamos el modelo pequeño de español
-# (asegúrate de haberlo instalado: python -m spacy download es_core_news_sm)
+# Carga el modelo pequeño de español
+# (Se instalará desde requirements.txt)
 nlp = spacy.load("es_core_news_sm")
 
 def extraer_conceptos(texto: str) -> list[str]:
     """
-    Extrae conceptos clave de un texto usando entidades nombradas.
-    :param texto: La pregunta o enunciado en español.
-    :return: Lista de conceptos (palabras o entidades) relevantes para PI.
+    Extrae conceptos clave de un texto usando entidades nombradas y sustantivos.
     """
     doc = nlp(texto)
     conceptos = set()
@@ -19,10 +17,9 @@ def extraer_conceptos(texto: str) -> list[str]:
     for ent in doc.ents:
         conceptos.add(ent.text)
 
-    # Sustantivos propios y comunes (pos_tag PROPN y NOUN)
+    # Sustantivos propios y comunes
     for token in doc:
         if token.pos_ in ("PROPN", "NOUN") and not token.is_stop and len(token.text) > 2:
             conceptos.add(token.lemma_)
 
-    # Devuelve una lista ordenada
     return list(conceptos)
