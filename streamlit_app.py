@@ -4,8 +4,9 @@ import json
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
     from weasyprint import HTML
-    except ImportError:
+except ImportError:
     HTML = None
+
 # --- IMPORTS DE MÓDULOS PROPIOS ---
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
