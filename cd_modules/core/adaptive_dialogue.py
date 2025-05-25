@@ -1,0 +1,2 @@
+class AdaptiveDialogue:
+    """TODO: implementar"""
