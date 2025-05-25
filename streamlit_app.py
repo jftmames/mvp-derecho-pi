@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import json
-
 from weasyprint import HTML
 
 from cd_modules.core.inquiry_engine import InquiryEngine
@@ -26,7 +25,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- SIDEBAR: Parámetros del árbol ---
+# --- SIDEBAR: Parámetros del árbol y ejemplos ---
 st.sidebar.header("⚙️ Configuración del árbol")
 pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
@@ -76,7 +75,7 @@ def contar_nodos(tree):
 def contar_respondidos():
     return len(st.session_state.tracker)
 
-# --- Generación masiva ---
+# --- Generación masiva de contexto ---
 def generar_todo(tree):
     def gen(hijos):
         for nodo, subhijos in hijos.items():
@@ -128,70 +127,51 @@ def mostrar_arbol(nodo, hijos, nivel=0):
     for hijo, subhijos in hijos.items():
         mostrar_arbol(hijo, subhijos, nivel + 1)
 
-# --- BOTONES de generación ---
+# --- Botón de generación global ---
 col_gen, _ = st.columns([4, 6])
 with col_gen:
     st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
 
-# --- BARRA DE PROGRESO ---
+# --- Barra de progreso ---
 total = contar_nodos(tree)
 respondidos = contar_respondidos()
 st.progress(min(respondidos / total, 1.0) if total else 0, text=f"Progreso: {respondidos}/{total} respondidos")
 
-# --- ÁRBOL DE RAZONAMIENTO ---
+# --- Árbol de razonamiento ---
 st.subheader("🔍 Árbol de razonamiento jurídico")
 for raiz, hijos in tree.items():
     mostrar_arbol(raiz, hijos)
 
-# --- Reasoning Tracker ---
+# --- Reasoning Tracker y descargas ---
 st.subheader("🧾 Reasoning Tracker")
 if respondidos > 0:
     df = pd.DataFrame(st.session_state.tracker)
     st.dataframe(df, use_container_width=True)
+    # CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Descargar como CSV", data=csv, file_name="reasoning_tracker.csv", mime="text/csv")
-
-    # Informe en Markdown
+    # Markdown
     md_lines = ["# Informe de Razonamiento\n"]
     for paso in st.session_state.tracker:
         linea = f"- **{paso['Subpregunta']}**: {paso['Contexto']} (Fuente: {paso['Fuente']}, Validación: {paso['Validación']})"
         md_lines.append(linea)
     md_report = "\n".join(md_lines)
     st.download_button(
-        label="📥 Descargar Informe (Markdown)",
-        data=md_report,
-        file_name="informe_razonamiento.md",
-        mime="text/markdown"
+        label="📥 Descargar Informe (Markdown)", data=md_report,
+        file_name="informe_razonamiento.md", mime="text/markdown"
     )
-
-            # Informe en PDF
-    # Generamos HTML básico a partir del Markdown
+    # PDF
     html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
     pdf_bytes = HTML(string=html_content).write_pdf()
     st.download_button(
-        label="📥 Descargar Informe (PDF)",
-        data=pdf_bytes,
-        file_name="informe_razonamiento.pdf",
-        mime="application/pdf"
+        label="📥 Descargar Informe (PDF)", data=pdf_bytes,
+        file_name="informe_razonamiento.pdf", mime="application/pdf"
     )
-        label="📥 Descargar Informe (PDF)",
-        data=pdf_bytes,
-        file_name="informe_razonamiento.pdf",
-        mime="application/pdf"
-    )
-        label="📥 Descargar Informe (PDF)",
-        data=pdf_bytes,
-        file_name="informe_razonamiento.pdf",
-        mime="application/pdf"
-    )
-
-    # Logs en JSON
+    # JSON
     logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
     st.download_button(
-        label="📥 Descargar Logs (JSON)",
-        data=logs_json,
-        file_name="logs_razonamiento.json",
-        mime="application/json"
+        label="📥 Descargar Logs (JSON)", data=logs_json,
+        file_name="logs_razonamiento.json", mime="application/json"
     )
 else:
     st.info("Aún no hay pasos registrados.")
@@ -205,7 +185,6 @@ with st.expander("📘 ¿Qué es la validación epistémica?"):
         - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
         """
     )
-
 with st.expander("⚙️ ¿Qué simula este MVP?"):
     st.markdown(
         """
@@ -216,7 +195,6 @@ with st.expander("⚙️ ¿Qué simula este MVP?"):
         5. Prepara la integración futura con LLM, PathRAG, corpus legal.
         """
     )
-
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
     st.markdown(
         """
@@ -224,3 +202,4 @@ with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
         - Permite auditar decisiones jurídicas generadas.
         """
     )
+
