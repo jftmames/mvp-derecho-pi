@@ -125,6 +125,31 @@ if respondidos > 0:
     st.dataframe(df, use_container_width=True)
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("📥 Descargar como CSV", data=csv, file_name="reasoning_tracker.csv", mime="text/csv")
+        import json
+
+    # 1) Botón para descargar el informe en Markdown
+    #    Aquí montamos un texto .md con títulos y bullets de cada paso.
+    md_lines = ["# Informe de Razonamiento\n"]
+    for paso in st.session_state.tracker:
+        linea = f"- **{paso['Subpregunta']}**: {paso['Contexto']} (Fuente: {paso['Fuente']}, Validación: {paso['Validación']})"
+        md_lines.append(linea)
+    md_report = "\n".join(md_lines)
+    st.download_button(
+        label="📥 Descargar Informe (Markdown)",
+        data=md_report,
+        file_name="informe_razonamiento.md",
+        mime="text/markdown"
+    )
+
+    # 2) Botón para descargar los logs en JSON
+    logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
+    st.download_button(
+        label="📥 Descargar Logs (JSON)",
+        data=logs_json,
+        file_name="logs_razonamiento.json",
+        mime="application/json"
+    )
+
 else:
     st.info("Aún no hay pasos registrados.")
 
