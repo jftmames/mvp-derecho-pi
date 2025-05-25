@@ -3,6 +3,7 @@
 from cd_modules.core.pathrag_pi import recuperar_fragmentos
 from cd_modules.core.validador_epistemico import validar_contexto
 
+
 def generar_contexto(nodo: str) -> dict:
     """
     Genera el contexto legal para un nodo concreto usando PathRAG y valida la coherencia.
