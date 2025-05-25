@@ -1,4 +1,5 @@
-```python
+# File: streamlit_app.py
+
 import streamlit as st
 import pandas as pd
 import json
@@ -12,6 +13,7 @@ except ImportError:
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
+from cd_modules.core.pathrag_pi import recuperar_fragmentos
 
 # --- CONFIGURACIÓN INICIAL ---
 st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
@@ -38,7 +40,7 @@ pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
 example = st.sidebar.selectbox(
-    "Ejemplos de consulta",
+    "Ejemplos de consulta", 
     ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"]
 )
 if example != "Ninguno":
@@ -52,10 +54,18 @@ if example != "Ninguno":
 # --- Extracción de conceptos con spaCy ---
 conceptos = extraer_conceptos(pregunta)
 st.subheader("🧩 Conceptos extraídos (NLP)")
-if conceptos:
-    st.write(conceptos)
+st.write(conceptos or "—")
+
+# --- PathRAG: fragmentos recuperados ---
+st.subheader("🔍 Fragmentos recuperados (PathRAG)")
+frags = recuperar_fragmentos(pregunta, top_k=3)
+if frags:
+    for f in frags:
+        with st.expander(f["titulo"]):
+            st.markdown(f"> {f['fragmento']}")
+            st.markdown(f"[Ver fuente]({f['url']})")
 else:
-    st.info("No se han podido extraer conceptos relevantes.")
+    st.info("No se recuperaron fragmentos relevantes.")
 
 # --- Generación del árbol ---
 ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
@@ -89,6 +99,7 @@ def contar_nodos(tree):
         total += 1
         contar(hijos)
     return total
+
 
 def contar_respondidos():
     return len(st.session_state.tracker)
@@ -207,24 +218,29 @@ else:
 
 # --- AYUDA Y EXPLICACIONES ---
 with st.expander("📘 ¿Qué es la validación epistémica?"):
-    st.markdown("""
+    st.markdown(
+        """
         - ✅ **Validada**: Hay respaldo legal o jurisprudencial claro.
         - ⚠️ **Parcial**: Respaldada por doctrina o interpretación indirecta.
         - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
-    """)
+        """
+    )
 
 with st.expander("⚙️ ¿Qué simula este MVP?"):
-    st.markdown("""
+    st.markdown(
+        """
         1. Estructura lógica tipo árbol.
         2. Genera contexto para cada nodo (simulado o vía LLM).
         3. Añade fuente y validación epistémica.
         4. Permite exportar el razonamiento.
         5. Prepara la integración futura con LLM, PathRAG, corpus legal.
-    """)
+        """
+    )
 
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
-    st.markdown("""
+    st.markdown(
+        """
         - Registra cada paso, fuente y nivel de validación.
         - Permite auditar decisiones jurídicas generadas.
-    """)
-```
+        """
+    )
