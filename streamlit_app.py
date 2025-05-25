@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import json
+import markdown as mdlib
+from weasyprint import HTML
 
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
@@ -11,21 +13,32 @@ st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
 st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
 
 # --- cumplimiento MVP: Declaración de valor ---
-st.markdown("""
-### ✅ Este MVP Cumple con:
-- **Dominio PI especialización**: Respuestas limitadas a propiedad intelectual.
-- **Ontología PI**: Mapeo de conceptos y visualización de grafo.
-- **Corpus legal validado**: Uso de fuentes oficiales (BOE, OEPM, sentencias).
-- **Pipeline especializado**: PathRAG, LLM encapsulado, validación epistémica.
-- **Trazabilidad total**: Registro de pasos, fuentes y validación, exportable.
-- **Explicabilidad**: Badge de validación y detallado del razonamiento.
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    ### ✅ Este MVP Cumple con:
+    - **Dominio PI especialización**: Respuestas limitadas a propiedad intelectual.
+    - **Ontología PI**: Mapeo de conceptos y visualización de grafo.
+    - **Corpus legal validado**: Uso de fuentes oficiales (BOE, OEPM, sentencias).
+    - **Pipeline especializado**: PathRAG, LLM encapsulado, validación epistémica.
+    - **Trazabilidad total**: Registro de pasos, fuentes y validación, exportable.
+    - **Explicabilidad**: Badge de validación y detallado del razonamiento.
+    """,
+    unsafe_allow_html=True
+)
 
 # --- SIDEBAR: Parámetros del árbol ---
 st.sidebar.header("⚙️ Configuración del árbol")
 pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
+example = st.sidebar.selectbox("Ejemplos de consulta", ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"])
+if example != "Ninguno":
+    templates = {
+        "Patente software IA": "¿Es patentable un software de IA para reconocimiento de voz en España?",
+        "Marca sonora España": "¿Qué protección tiene una marca sonora registrada en España?",
+        "Convenios internacionales derechos autor": "¿Qué convenios internacionales regulan el derecho de autor en España?"
+    }
+    pregunta = templates[example]
 
 # --- Generación del árbol ---
 ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
@@ -44,7 +57,6 @@ def badge_validacion(tipo):
     else:
         return '<span style="color: white; background-color: #dc3545; padding: 3px 8px; border-radius: 6px;">❌ No validada</span>'
 
-
 def esta_respondido(nodo):
     return any(x["Subpregunta"] == nodo for x in st.session_state.tracker)
 
@@ -60,7 +72,6 @@ def contar_nodos(tree):
         total += 1
         contar(hijos)
     return total
-
 
 def contar_respondidos():
     return len(st.session_state.tracker)
@@ -93,7 +104,6 @@ def generar_todo(tree):
 def mostrar_arbol(nodo, hijos, nivel=0):
     margen = "  " * nivel
     data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
-
     with st.container():
         col1, col2 = st.columns([9, 1])
         with col1:
@@ -101,7 +111,6 @@ def mostrar_arbol(nodo, hijos, nivel=0):
         with col2:
             if data:
                 st.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
-
         if data:
             st.info(f"{margen}📘 *{data['Contexto']}*")
             st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
@@ -116,12 +125,13 @@ def mostrar_arbol(nodo, hijos, nivel=0):
                         "Validación": nuevo.get("validacion", "no validada")
                     })
                     st.experimental_rerun()
-
     for hijo, subhijos in hijos.items():
         mostrar_arbol(hijo, subhijos, nivel + 1)
 
-# --- BOTÓN "Generar TODO" ---
-st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
+# --- BOTONES de generación ---
+col_gen, _ = st.columns([4, 6])
+with col_gen:
+    st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
 
 # --- BARRA DE PROGRESO ---
 total = contar_nodos(tree)
@@ -154,6 +164,16 @@ if respondidos > 0:
         mime="text/markdown"
     )
 
+    # Informe en PDF
+    html_content = mdlib.markdown(md_report)
+    pdf_bytes = HTML(string=html_content).write_pdf()
+    st.download_button(
+        label="📥 Descargar Informe (PDF)",
+        data=pdf_bytes,
+        file_name="informe_razonamiento.pdf",
+        mime="application/pdf"
+    )
+
     # Logs en JSON
     logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
     st.download_button(
@@ -167,24 +187,29 @@ else:
 
 # --- AYUDA Y EXPLICACIONES ---
 with st.expander("📘 ¿Qué es la validación epistémica?"):
-    st.markdown("""
-    - ✅ **Validada**: Hay respaldo legal o jurisprudencial claro.
-    - ⚠️ **Parcial**: Respaldada por doctrina o interpretación indirecta.
-    - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
-    """)
+    st.markdown(
+        """
+        - ✅ **Validada**: Hay respaldo legal o jurisprudencial claro.
+        - ⚠️ **Parcial**: Respaldada por doctrina o interpretación indirecta.
+        - ❌ **No validada**: Hipótesis no respaldada por fuentes jurídicas.
+        """
+    )
 
 with st.expander("⚙️ ¿Qué simula este MVP?"):
-    st.markdown("""
-    1. Estructura lógica tipo árbol.
-    2. Genera contexto para cada nodo (simulado o vía LLM).
-    3. Añade fuente y validación epistémica.
-    4. Permite exportar el razonamiento.
-    5. Prepara la integración futura con LLM, PathRAG, corpus legal.
-    """)
+    st.markdown(
+        """
+        1. Estructura lógica tipo árbol.
+        2. Genera contexto para cada nodo (simulado o vía LLM).
+        3. Añade fuente y validación epistémica.
+        4. Permite exportar el razonamiento.
+        5. Prepara la integración futura con LLM, PathRAG, corpus legal.
+        """
+    )
 
 with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
-    st.markdown("""
-    - Registra cada paso, fuente y nivel de validación.
-    - Permite auditar decisiones jurídicas generadas.
-    """)
-
+    st.markdown(
+        """
+        - Registra cada paso, fuente y nivel de validación.
+        - Permite auditar decisiones jurídicas generadas.
+        """
+    )
