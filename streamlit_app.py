@@ -10,6 +10,17 @@ st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
 st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
 st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
 
+# --- cumplimiento MVP: Declaración de valor ---
+st.markdown("""
+### ✅ Este MVP Cumple con:
+- **Dominio PI especialización**: Respuestas limitadas a propiedad intelectual.
+- **Ontología PI**: Mapeo de conceptos y visualización de grafo.
+- **Corpus legal validado**: Uso de fuentes oficiales (BOE, OEPM, sentencias).
+- **Pipeline especializado**: PathRAG, LLM encapsulado, validación epistémica.
+- **Trazabilidad total**: Registro de pasos, fuentes y validación, exportable.
+- **Explicabilidad**: Badge de validación y detallado del razonamiento.
+""", unsafe_allow_html=True)
+
 # --- SIDEBAR: Parámetros del árbol ---
 st.sidebar.header("⚙️ Configuración del árbol")
 pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
@@ -176,3 +187,4 @@ with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
     - Registra cada paso, fuente y nivel de validación.
     - Permite auditar decisiones jurídicas generadas.
     """)
+
