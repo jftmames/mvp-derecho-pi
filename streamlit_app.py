@@ -4,6 +4,27 @@ import streamlit as st
 import pandas as pd
 import json
 
+# En streamlit_app.py, justo después de imports:
+
+@st.cache_data(show_spinner=False)
+def get_conceptos(pregunta: str):
+    return extraer_conceptos(pregunta)
+
+@st.cache_data(show_spinner=False)
+def get_fragmentos(pregunta: str, top_k: int = 3):
+    from cd_modules.core.pathrag_pi import recuperar_fragmentos
+    return recuperar_fragmentos(pregunta, top_k)
+
+@st.cache_data(show_spinner=False)
+def get_tree(pregunta: str, max_depth: int, max_width: int):
+    ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
+    return ie.generate()
+
+# Y en lugar de llamarlos directamente:
+conceptos = get_conceptos(pregunta)
+frags    = get_fragmentos(pregunta, top_k=3)
+tree     = get_tree(pregunta, max_depth, max_width)
+
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
     from weasyprint import HTML
