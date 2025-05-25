@@ -1,7 +1,12 @@
 import streamlit as st
 import pandas as pd
 import json
-from weasyprint import HTML
+
+# Intentamos importar weasyprint para PDF; si no está, lo ignoramos
+try:
+    from weasyprint import HTML
+except ImportError:
+    HTML = None
 
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
@@ -30,7 +35,10 @@ st.sidebar.header("⚙️ Configuración del árbol")
 pregunta = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
-example = st.sidebar.selectbox("Ejemplos de consulta", ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"])
+example = st.sidebar.selectbox(
+    "Ejemplos de consulta", 
+    ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"]
+)
 if example != "Ninguno":
     templates = {
         "Patente software IA": "¿Es patentable un software de IA para reconocimiento de voz en España?",
@@ -160,13 +168,14 @@ if respondidos > 0:
         label="📥 Descargar Informe (Markdown)", data=md_report,
         file_name="informe_razonamiento.md", mime="text/markdown"
     )
-    # PDF
-    html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
-    pdf_bytes = HTML(string=html_content).write_pdf()
-    st.download_button(
-        label="📥 Descargar Informe (PDF)", data=pdf_bytes,
-        file_name="informe_razonamiento.pdf", mime="application/pdf"
-    )
+    # PDF (solo si weasyprint está disponible)
+    if HTML:
+        html_content = "<html><body>" + md_report.replace("\n", "<br>") + "</body></html>"
+        pdf_bytes = HTML(string=html_content).write_pdf()
+        st.download_button(
+            label="📥 Descargar Informe (PDF)", data=pdf_bytes,
+            file_name="informe_razonamiento.pdf", mime="application/pdf"
+        )
     # JSON
     logs_json = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
     st.download_button(
@@ -202,4 +211,3 @@ with st.expander("🧠 ¿Qué es el Reasoning Tracker?"):
         - Permite auditar decisiones jurídicas generadas.
         """
     )
-
