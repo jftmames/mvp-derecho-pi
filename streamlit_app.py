@@ -8,6 +8,8 @@ try:
 except ImportError:
     HTML = None
 
+
+from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
 
