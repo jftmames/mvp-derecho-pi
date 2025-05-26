@@ -221,6 +221,7 @@ st.write(conceptos or "—")
 
 # 2) Fragmentos RAG
 st.subheader("🔍 Fragmentos recuperados (PathRAG)")
+st.caption("Estos son ejemplos de fragmentos recuperados por nuestro sistema PathRAG (actualmente simulado).")
 if frags:
     for f in frags:
         with st.expander(f["titulo"]):
@@ -252,7 +253,13 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                 st.markdown(f"{margen}---") # Separador visual
                 if data:
                     st.info(f"{margen}📘 *{data['Contexto']}*")
-                    st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
+                    fuente_texto = data['Fuente']
+                if fuente_texto and fuente_texto.startswith("http"):
+                    st.markdown(f"{margen}🔗 **Fuente:** [{fuente_texto}]({fuente_texto})")
+                elif fuente_texto:
+                    st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
+# Si no hay fuente, no se muestra nada.
+                   
                 else:
                     # Usar columnas para alinear el botón
                     col_margen, col_boton = st.columns([nivel if nivel > 0 else 0.1, 10 - (nivel if nivel > 0 else 0.1)])
