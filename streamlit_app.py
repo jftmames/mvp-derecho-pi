@@ -12,7 +12,7 @@
                     # --- INICIO SEGUNDO BLOQUE 'IF DATA' ---
                     st.info(f"{margen}📘 *{data['Contexto']}*")
 
-                    # --- CÓDIGO A VERIFICAR/CORREGIR ---
+                    # --- CÓDIGO A VERIFICAR/CORREGIR --- 
                     fuente_texto = data.get('Fuente', '') # Usamos .get para más seguridad
                     if fuente_texto and fuente_texto.startswith("http"):
                         st.markdown(f"{margen}🔗 **Fuente:** [{fuente_texto}]({fuente_texto})")
