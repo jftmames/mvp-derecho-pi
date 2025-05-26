@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from streamlit_agraph import agraph, Node, Edge, Config
+import graphviz
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
     from weasyprint import HTML
@@ -157,56 +157,61 @@ def generar_todo(tree):
                 "Validación": data.get("validacion", "no validada")
             })
         gen(hijos)
-    # --- Funciones para Grafo ---
+# --- Funciones para Grafo (Versión Graphviz) ---
 def get_node_color(nodo):
+    """Obtiene el color del nodo según su estado de validación."""
     data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
     if data:
         val = data.get("Validación", "no validada")
-        if val == "validada": return "#28a745"  # Verde
-        elif val == "parcial": return "#ffc107"  # Amarillo
-        else: return "#dc3545"  # Rojo
-    return "#6c757d" # Gris (Pendiente)
+        if val == "validada": return "#D4EDDA"  # Verde claro
+        elif val == "parcial": return "#FFF3CD"  # Amarillo claro
+        else: return "#F8D7DA"  # Rojo claro
+    return "#E9ECEF" # Gris claro (Pendiente)
 
-def construir_grafo(tree_dict, nodes, edges):
-    """Función recursiva para construir nodos y aristas."""
+def get_node_font_color(nodo):
+    """Obtiene el color de la fuente para mejor contraste."""
+    data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
+    if data:
+        val = data.get("Validación", "no validada")
+        if val == "validada": return "#155724"  # Verde oscuro
+        elif val == "parcial": return "#856404"  # Amarillo oscuro
+        else: return "#721c24"  # Rojo oscuro
+    return "#495057" # Gris oscuro
+
+def construir_grafo_gv(tree_dict, dot):
+    """Función recursiva para construir el grafo Graphviz."""
     for parent, children in tree_dict.items():
-        # Añadir nodo padre si no existe (con color)
-        if not any(node.id == parent for node in nodes):
-             nodes.append(Node(id=parent, label=parent, color=get_node_color(parent), shape="box", font={"size": 10})) # Ajusta el tamaño de la fuente
+        # Añadir nodo padre con colores
+        dot.node(parent, parent, shape='box', style='filled',
+                 fillcolor=get_node_color(parent),
+                 fontcolor=get_node_font_color(parent),
+                 fontname="Arial", fontsize="10")
 
         # Procesar hijos
         for child, sub_children in children.items():
-            if not any(node.id == child for node in nodes):
-                 nodes.append(Node(id=child, label=child, color=get_node_color(child), shape="box", font={"size": 10}))
-            edges.append(Edge(source=parent, target=child, color="#adb5bd")) # Color de arista
-            construir_grafo({child: sub_children}, nodes, edges)
+            dot.node(child, child, shape='box', style='filled',
+                     fillcolor=get_node_color(child),
+                     fontcolor=get_node_font_color(child),
+                     fontname="Arial", fontsize="10")
+            dot.edge(parent, child, color="#6c757d") # Color gris para aristas
+            construir_grafo_gv({child: sub_children}, dot)
 
 def mostrar_grafo(tree):
-    """Prepara y muestra el grafo interactivo."""
-    nodes = []
-    edges = []
-    construir_grafo(tree, nodes, edges)
+    """Prepara y muestra el grafo con Graphviz."""
+    dot = graphviz.Digraph(comment='Árbol de Razonamiento')
+    dot.attr(rankdir='TB') # Layout de Arriba a Abajo (Top to Bottom)
+    dot.attr('node', shape='box', style='filled', fontname="Arial", fontsize="10")
+    dot.attr('edge', color="#6c757d")
 
-    if nodes:
-        config = Config(width="100%",
-                        height=600,
-                        directed=True,
-                        physics=True, # Habilita físicas para mejor layout
-                        hierarchical=True, # Intenta un layout jerárquico
-                        nodeHighlightBehavior=True,
-                        highlightColor="#F7A7A6",
-                        collapsible=False, # Puede experimentar con True
-                        node={'labelProperty':'label'},
-                        link={'labelProperty':'label', 'renderLabel':False},
-                        # Puedes ajustar más opciones aquí: https://visjs.github.io/vis-network/docs/network/
-                        )
+    construir_grafo_gv(tree, dot)
 
+    if dot.body:
         st.subheader("🗺️ Visualización del Árbol de Razonamiento")
-        agraph(nodes=nodes, edges=edges, config=config)
+        st.graphviz_chart(dot)
+        st.caption("Este es un grafo estático. Use la vista de texto inferior para interactuar.")
     else:
         st.info("El árbol de razonamiento está vacío.")
-
-# --- FIN Funciones para Grafo ---
+# --- FIN Funciones para Grafo (Versión Graphviz) ---
 
 # --- Renderizado de la App ---
 # 1) Conceptos
