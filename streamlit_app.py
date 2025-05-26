@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+from streamlit_agraph import agraph, Node, Edge, Config
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
     from weasyprint import HTML
@@ -156,6 +157,56 @@ def generar_todo(tree):
                 "Validación": data.get("validacion", "no validada")
             })
         gen(hijos)
+    # --- Funciones para Grafo ---
+def get_node_color(nodo):
+    data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
+    if data:
+        val = data.get("Validación", "no validada")
+        if val == "validada": return "#28a745"  # Verde
+        elif val == "parcial": return "#ffc107"  # Amarillo
+        else: return "#dc3545"  # Rojo
+    return "#6c757d" # Gris (Pendiente)
+
+def construir_grafo(tree_dict, nodes, edges):
+    """Función recursiva para construir nodos y aristas."""
+    for parent, children in tree_dict.items():
+        # Añadir nodo padre si no existe (con color)
+        if not any(node.id == parent for node in nodes):
+             nodes.append(Node(id=parent, label=parent, color=get_node_color(parent), shape="box", font={"size": 10})) # Ajusta el tamaño de la fuente
+
+        # Procesar hijos
+        for child, sub_children in children.items():
+            if not any(node.id == child for node in nodes):
+                 nodes.append(Node(id=child, label=child, color=get_node_color(child), shape="box", font={"size": 10}))
+            edges.append(Edge(source=parent, target=child, color="#adb5bd")) # Color de arista
+            construir_grafo({child: sub_children}, nodes, edges)
+
+def mostrar_grafo(tree):
+    """Prepara y muestra el grafo interactivo."""
+    nodes = []
+    edges = []
+    construir_grafo(tree, nodes, edges)
+
+    if nodes:
+        config = Config(width="100%",
+                        height=600,
+                        directed=True,
+                        physics=True, # Habilita físicas para mejor layout
+                        hierarchical=True, # Intenta un layout jerárquico
+                        nodeHighlightBehavior=True,
+                        highlightColor="#F7A7A6",
+                        collapsible=False, # Puede experimentar con True
+                        node={'labelProperty':'label'},
+                        link={'labelProperty':'label', 'renderLabel':False},
+                        # Puedes ajustar más opciones aquí: https://visjs.github.io/vis-network/docs/network/
+                        )
+
+        st.subheader("🗺️ Visualización del Árbol de Razonamiento")
+        agraph(nodes=nodes, edges=edges, config=config)
+    else:
+        st.info("El árbol de razonamiento está vacío.")
+
+# --- FIN Funciones para Grafo ---
 
 # --- Renderizado de la App ---
 # 1) Conceptos
@@ -172,33 +223,50 @@ if frags:
 else:
     st.info("No se recuperaron fragmentos relevantes.")
 
-# 3) Árbol de razonamiento
-st.subheader("🔍 Árbol de razonamiento jurídico")
-for raiz, hijos in tree.items():
-    def mostrar(nodo, sub, nivel=0):
-        margen = "  " * nivel
-        data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
-        with st.container():
-            c1, c2 = st.columns([9,1])
-            c1.markdown(f"{margen}🔹 **{nodo}**")
-            if data:
-                c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
-            if data:
-                st.info(f"{margen}📘 *{data['Contexto']}*")
-                st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
-            else:
-                if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}"):
-                    nuevo = generar_contexto(nodo)
-                    st.session_state.tracker.append({
-                        "Subpregunta": nodo,
-                        "Contexto": nuevo["contexto"],
-                        "Fuente": nuevo["fuente"],
-                        "Validación": nuevo.get("validacion","no validada")
-                    })
-                    st.experimental_rerun()
-        for h, s in sub.items():
-            mostrar(h, s, nivel+1)
-    mostrar(raiz, hijos)
+# 3) Árbol de razonamiento y Acciones
+st.subheader("🌳 Árbol de Razonamiento Jurídico")
+
+# --- MOSTRAR GRAFO ---
+mostrar_grafo(tree)
+# --- FIN MOSTRAR GRAFO ---
+
+# --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
+with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
+    for raiz, hijos in tree.items():
+        def mostrar_detalle(nodo, sub, nivel=0): # Renombramos la función original
+            margen = "  " * nivel
+            data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
+            with st.container():
+                c1, c2 = st.columns([9,1])
+                c1.markdown(f"{margen}🔹 **{nodo}**")
+                if data:
+                    c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
+
+                # Colocar el botón y la info dentro del margen
+                st.markdown(f"{margen}---") # Separador visual
+                if data:
+                    st.info(f"{margen}📘 *{data['Contexto']}*")
+                    st.markdown(f"{margen}🔗 **Fuente:** {data['Fuente']}")
+                else:
+                    # Usar columnas para alinear el botón
+                    col_margen, col_boton = st.columns([nivel if nivel > 0 else 0.1, 10 - (nivel if nivel > 0 else 0.1)])
+                    with col_boton:
+                         if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}"):
+                            nuevo = generar_contexto(nodo)
+                            st.session_state.tracker.append({
+                                "Subpregunta": nodo,
+                                "Contexto": nuevo["contexto"],
+                                "Fuente": nuevo["fuente"],
+                                "Validación": nuevo.get("validacion","no validada")
+                            })
+                            st.experimental_rerun() # Usar rerun en lugar de experimental_rerun si hay problemas
+                st.markdown(f"{margen}---") # Separador visual
+
+            for h, s in sub.items():
+                mostrar_detalle(h, s, nivel+1) # Llamada recursiva a la función renombrada
+
+        mostrar_detalle(raiz, hijos) # Llamada inicial a la función renombrada
+# --- FIN DETALLES Y ACCIONES ---
 
 # 4) Barra de progreso y botón global
 total = contar_nodos(tree)
