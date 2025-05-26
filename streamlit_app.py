@@ -17,6 +17,41 @@ from cd_modules.core.pathrag_pi import recuperar_fragmentos
 st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
 st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
 st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
+# --- GUÍA PARA EL EVALUADOR ANECA ---
+with st.expander("ℹ️ Guía para el Evaluador - Haga clic para expandir"):
+    st.markdown(
+        """
+        **Bienvenido/a al MVP del Código Deliberativo para el Derecho de la Propiedad Intelectual.**
+
+        Esta demostración ha sido diseñada para ilustrar nuestra aproximación computacional a la organización del juicio y el razonamiento jurídico.
+
+        **1. Propósito del MVP:**
+        * Demostrar cómo el Código Deliberativo estructura una consulta compleja en preguntas jerárquicas.
+        * Mostrar la recuperación de contexto legal (simulada vía PathRAG) para cada subpregunta.
+        * Evidenciar la **validación epistémica** (indicada por los 'badges' ✅⚠️❌) y la **trazabilidad** del proceso.
+
+        **2. Innovación Clave:**
+        * A diferencia de los modelos generativos que buscan una respuesta única, este sistema **organiza la deliberación**, mantiene múltiples líneas de indagación y hace el proceso **auditable y justificable**. No genera 'la' respuesta, sino que *estructura el pensamiento*.
+
+        **3. Mapa del MVP y Flujo Sugerido:**
+        * **Configuración (Barra Lateral):** Introduzca su pregunta o seleccione un ejemplo. Ajuste la profundidad/anchura si lo desea.
+        * **Conceptos y Fragmentos:** Observe los conceptos clave extraídos y los fragmentos legales (simulados) recuperados.
+        * **Árbol de Razonamiento:** Explore la estructura de preguntas. Haga clic en **"🧠 Generar contexto"** para nodos individuales o use **"🧠 Generar TODO el contexto"** al final.
+        * **Validación:** Fíjese en los 'badges' (✅⚠️❌) junto a cada nodo respondido.
+        * **Reasoning Tracker:** Revise la tabla inferior, que registra cada paso. Puede **descargar** el informe en varios formatos (CSV, MD, PDF, JSON).
+
+        **4. Estado Actual (Transparencia):**
+        * Este es un **Producto Mínimo Viable (MVP)**.
+        * El `Inquiry Engine` y `Contextual Generator` (con validación) están implementados.
+        * La recuperación de fragmentos (`PathRAG`) y el `Epistemic Navigator` (búsqueda) son **simulaciones (stubs)** para demostrar el flujo.
+        * El `Adaptive Dialogue` es un **placeholder** futuro.
+        * El EEE es una **métrica simplificada** en esta fase.
+
+        **¡Gracias por su tiempo y evaluación!**
+        """,
+        unsafe_allow_html=True
+    )
+# --- FIN GUÍA ---
 
 # --- CACHES PARA MEJORAR RENDIMIENTO ---
 @st.cache_data(show_spinner=False)
