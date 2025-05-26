@@ -110,12 +110,13 @@ if "tracker" not in st.session_state:
 
 # --- Funciones Auxiliares ---
 def badge_validacion(tipo):
+    """Genera un badge HTML con tooltip para el estado de validación."""
     if tipo == "validada":
-        return '<span style="color: white; background-color: #28a745; padding: 3px 8px; border-radius: 6px;">✅ Validada</span>'
+        return '<span style="color: white; background-color: #28a745; padding: 3px 8px; border-radius: 6px;" title="✅ Validada: La respuesta tiene un respaldo legal claro y directo en las fuentes.">✅ Validada</span>'
     elif tipo == "parcial":
-        return '<span style="color: black; background-color: #ffc107; padding: 3px 8px; border-radius: 6px;">⚠️ Parcial</span>'
+        return '<span style="color: black; background-color: #ffc107; padding: 3px 8px; border-radius: 6px;" title="⚠️ Parcial: La respuesta se basa en una interpretación o fuente indirecta.">⚠️ Parcial</span>'
     else:
-        return '<span style="color: white; background-color: #dc3545; padding: 3px 8px; border-radius: 6px;">❌ No validada</span>'
+        return '<span style="color: white; background-color: #dc3545; padding: 3px 8px; border-radius: 6px;" title="❌ No validada: No se encontró respaldo claro en las fuentes consultadas.">❌ No validada</span>'
 
 def esta_respondido(nodo):
     return any(x["Subpregunta"] == nodo for x in st.session_state.tracker)
