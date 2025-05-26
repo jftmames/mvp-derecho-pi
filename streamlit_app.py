@@ -283,26 +283,72 @@ dummy, colb = st.columns([6,4])
 with colb:
     st.button("🧠 Generar TODO el contexto", on_click=lambda: generar_todo(tree), type="primary")
 
-# 5) Tracker y descargas
-st.subheader("🧾 Reasoning Tracker")
+# 5) Tracker, Métricas y Descargas
+st.subheader("📊 Reasoning Tracker y Métricas")
+
 if resp > 0:
     df = pd.DataFrame(st.session_state.tracker)
+
+    # --- CÁLCULO DE MÉTRICAS ---
+    validada_count = df[df["Validación"] == "validada"].shape[0]
+    parcial_count = df[df["Validación"] == "parcial"].shape[0]
+    no_validada_count = df[df["Validación"] == "no validada"].shape[0]
+
+    # EEE Simplificado: % de nodos respondidos con algún nivel de validación (>= Parcial)
+    eee_score = ((validada_count + parcial_count) / resp * 100) if resp > 0 else 0
+
+    # --- MOSTRAR MÉTRICAS ---
+    st.markdown("#### Resumen del Proceso Deliberativo:")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Nodos Totales", f"{total}")
+    col2.metric("Nodos Respondidos", f"{resp} ({resp/total:.0%})")
+    col3.metric("Validados (✅ + ⚠️)", f"{validada_count + parcial_count}")
+    col4.metric("EEE (Simplificado)", f"{eee_score:.1f}%",
+                help="Índice de Equilibrio Erotético (Simplificado): % de nodos respondidos con respaldo 'Validado' o 'Parcial'. Mide la robustez epistémica alcanzada.")
+
+    with st.expander("📘 ¿Qué es el Índice de Equilibrio Erotético (EEE)?"):
+        st.markdown(
+            """
+            El **Índice de Equilibrio Erotético (EEE)** es una métrica para evaluar la **calidad deliberativa** de un proceso de razonamiento. No mide si una IA 'acierta', sino *cómo* razona.
+
+            En su versión completa (descrita en la teoría), evalúa 5 dimensiones: Profundidad, Pluralidad, Justificación, Revisión y Trazabilidad.
+
+            **En este MVP, presentamos una versión simplificada:**
+            * **EEE (Simplificado) = (% de Nodos Respondidos que son '✅ Validada' o '⚠️ Parcial')**
+            * Nos da una idea rápida de qué proporción del razonamiento generado tiene un respaldo (aunque sea indirecto) en las fuentes simuladas.
+            * Un EEE más alto sugiere un razonamiento más fundamentado según nuestro `validador_epistemico.py`.
+
+            *Aunque la clase `ReasoningTracker` existe, este cálculo se realiza aquí para mayor claridad en el MVP.*
+            """
+        )
+
+    # --- MOSTRAR TABLA ---
+    st.markdown("#### Detalle del Reasoning Tracker:")
     st.dataframe(df, use_container_width=True)
+
+    # --- MOSTRAR DESCARGAS ---
+    st.markdown("#### Opciones de Exportación:")
     csv = df.to_csv(index=False).encode()
-    st.download_button("📥 CSV", data=csv, file_name="tracker.csv", mime="text/csv")
     md = "# Informe de Razonamiento\n" + "\n".join(
         f"- **{r['Subpregunta']}**: {r['Contexto']} (Fuente: {r['Fuente']}, Val: {r['Validación']})"
         for r in st.session_state.tracker
     )
-    st.download_button("📥 MD", data=md, file_name="informe.md", mime="text/markdown")
-    if HTML:
-        html = "<html><body>" + md.replace("\n","<br>") + "</body></html>"
-        pdf = HTML(string=html).write_pdf()
-        st.download_button("📥 PDF", data=pdf, file_name="informe.pdf", mime="application/pdf")
     js = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False)
-    st.download_button("📥 JSON", data=js, file_name="logs.json", mime="application/json")
+
+    d_col1, d_col2, d_col3, d_col4 = st.columns(4)
+    d_col1.download_button("📥 CSV", data=csv, file_name="tracker.csv", mime="text/csv", use_container_width=True)
+    d_col2.download_button("📥 MD", data=md, file_name="informe.md", mime="text/markdown", use_container_width=True)
+    d_col3.download_button("📥 JSON", data=js, file_name="logs.json", mime="application/json", use_container_width=True)
+
+    if HTML:
+        html_content = "<html><head><meta charset='UTF-8'></head><body>" + md.replace("\n","<br>") + "</body></html>"
+        pdf = HTML(string=html_content).write_pdf()
+        d_col4.download_button("📥 PDF", data=pdf, file_name="informe.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        d_col4.info("PDF no disponible (falta WeasyPrint)")
+
 else:
-    st.info("Aún no hay pasos registrados.")
+    st.info("Aún no hay pasos registrados. Genere contexto para algún nodo del árbol.")
 
 # 6) Ayudas
 with st.expander("📘 ¿Qué es la validación epistémica?"):
