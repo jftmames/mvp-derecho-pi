@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import graphviz
-import os # Importamos 'os' para acceder a las variables de entorno
+import os
 
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
@@ -14,48 +14,13 @@ except ImportError:
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
-from cd_modules.core.pathrag_pi import recuperar_fragmentos
+# ELIMINADO: ya no se usa recuperar_fragmentos en este flujo
+# from cd_modules.core.pathrag_pi import recuperar_fragmentos
 
 # --- CONFIGURACIÓN INICIAL ---
 st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
 st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
-st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
-
-# --- GUÍA PARA EL EVALUADOR ANECA ---
-with st.expander("ℹ️ Guía para el Evaluador (ANECA) - Haga clic para expandir"):
-    st.markdown(
-        """
-        **Bienvenido/a al MVP del Código Deliberativo para el Derecho de la Propiedad Intelectual.**
-
-        Esta demostración ha sido diseñada para ilustrar nuestra aproximación computacional a la organización del juicio y el razonamiento jurídico.
-
-        **1. Propósito del MVP:**
-        * Demostrar cómo el Código Deliberativo estructura una consulta compleja en preguntas jerárquicas.
-        * Mostrar la recuperación de contexto legal (simulada vía PathRAG) para cada subpregunta.
-        * Evidenciar la **validación epistémica** (indicada por los 'badges' ✅⚠️❌) y la **trazabilidad** del proceso.
-
-        **2. Innovación Clave:**
-        * A diferencia de los modelos generativos que buscan una respuesta única, este sistema **organiza la deliberación**, mantiene múltiples líneas de indagación y hace el proceso **auditable y justificable**. No genera 'la' respuesta, sino que *estructura el pensamiento*.
-
-        **3. Mapa del MVP y Flujo Sugerido:**
-        * **Configuración (Barra Lateral):** Introduzca su pregunta o seleccione un ejemplo. Ajuste la profundidad/anchura si lo desea. Pruebe el botón **"🗑️ Reiniciar Deliberación"**.
-        * **Conceptos y Fragmentos:** Observe los conceptos clave y los fragmentos legales (ahora en columnas).
-        * **Árbol de Razonamiento:** Explore el **grafo visual** y luego la **vista de texto** (en el expander) para generar contexto con **spinners** de feedback.
-        * **Validación:** Fíjese en los 'badges' (con tooltips) junto a cada nodo respondido.
-        * **Reasoning Tracker:** Revise las **métricas** y la tabla inferior. Descargue el informe.
-
-        **4. Estado Actual (Transparencia):**
-        * Este es un **Producto Mínimo Viable (MVP)**.
-        * El `Inquiry Engine` y `Contextual Generator` (con validación) están implementados.
-        * La recuperación de fragmentos (`PathRAG`) y el `Epistemic Navigator` (búsqueda) son **simulaciones (stubs)** para demostrar el flujo.
-        * El `Adaptive Dialogue` es un **placeholder** futuro.
-        * El EEE es una **métrica simplificada** en esta fase.
-
-        **¡Gracias por su tiempo y evaluación!**
-        """,
-        unsafe_allow_html=True
-    )
-# --- FIN GUÍA ---
+st.markdown("Esta demo razona sobre Propiedad Intelectual usando un árbol deliberativo impulsado por IA.")
 
 # --- OBTENER API KEY DE LAS VARIABLES DE ENTORNO ---
 # La aplicación buscará una variable de entorno llamada OPENAI_API_KEY
@@ -68,33 +33,13 @@ openai_api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 def get_conceptos(pregunta: str):
     return extraer_conceptos(pregunta)
 
-@st.cache_data(show_spinner="Recuperando fragmentos...")
-def get_fragmentos(pregunta: str, top_k: int = 3):
-    return recuperar_fragmentos(pregunta, top_k)
-
 @st.cache_data(show_spinner="Generando árbol de razonamiento...")
 def get_tree(pregunta: str, max_depth: int, max_width: int):
     ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
     return ie.generate()
 
-# --- DECLARACIÓN DE VALOR ---
-st.markdown(
-    """
-    ### ✅ Este MVP Cumple con:
-    - **Dominio PI especialización**: Respuestas limitadas a propiedad intelectual.
-    - **Ontología PI**: Mapeo de conceptos y visualización de grafo.
-    - **Corpus legal validado**: Uso de fuentes oficiales (simulado).
-    - **Pipeline especializado**: PathRAG, validación epistémica.
-    - **Trazabilidad total**: Registro de pasos, fuentes y validación, exportable.
-    - **Explicabilidad**: Badge de validación y detallado del razonamiento.
-    """,
-    unsafe_allow_html=True
-)
-
 # --- SIDEBAR: INPUTS DEL USUARIO ---
 st.sidebar.header("⚙️ Configuración del árbol")
-
-# ELIMINADO: El campo para la clave de API ya no es necesario en la interfaz.
 
 pregunta_input = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
@@ -116,7 +61,6 @@ else:
 
 # --- EJECUCIÓN DEL PIPELINE ---
 conceptos = get_conceptos(pregunta)
-frags = get_fragmentos(pregunta, top_k=3)
 tree = get_tree(pregunta, max_depth, max_width)
 
 # --- Sesión para tracker ---
@@ -210,7 +154,6 @@ def get_node_font_color(nodo):
 
 def construir_grafo_gv(tree_dict, dot):
     """Función recursiva para construir el grafo Graphviz."""
-    # MODIFICADO: Aumentamos el tamaño de la fuente para los nodos
     font_size = "16"
     for parent, children in tree_dict.items():
         dot.node(parent, parent, shape='box', style='filled',
@@ -228,7 +171,6 @@ def construir_grafo_gv(tree_dict, dot):
 def mostrar_grafo(tree):
     """Prepara y muestra el grafo con Graphviz."""
     dot = graphviz.Digraph(comment='Árbol de Razonamiento')
-    # MODIFICADO: Aumentamos el DPI para escalar todo el gráfico y hacerlo más grande
     dot.attr(rankdir='TB', dpi='150')
     dot.attr('node', shape='box', style='filled', fontname="Arial")
     dot.attr('edge', color="#6c757d")
@@ -250,21 +192,8 @@ if st.sidebar.button("🗑️ Reiniciar Deliberación"):
 # --- Renderizado de la App ---
 st.divider()
 
-col_izq, col_der = st.columns(2)
-with col_izq:
-    st.subheader("🧩 Conceptos extraídos (NLP)")
-    st.write(conceptos or "—")
-
-with col_der:
-    st.subheader("🔍 Fragmentos recuperados (PathRAG)")
-    st.caption("Estos son ejemplos de fragmentos recuperados por nuestro sistema PathRAG (actualmente simulado).")
-    if frags:
-        for f in frags:
-            with st.expander(f["titulo"]):
-                st.markdown(f"> {f['fragmento']}")
-                st.markdown(f"[Ver fuente]({f['url']})")
-    else:
-        st.info("No se recuperaron fragmentos relevantes.")
+st.subheader("🧩 Conceptos extraídos (NLP)")
+st.write(conceptos or "—")
 
 st.divider()
 st.subheader("🌳 Árbol de Razonamiento Jurídico")
