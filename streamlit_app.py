@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import graphviz
+import os # Importamos 'os' para acceder a las variables de entorno
 
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
@@ -56,6 +57,12 @@ with st.expander("ℹ️ Guía para el Evaluador (ANECA) - Haga clic para expand
     )
 # --- FIN GUÍA ---
 
+# --- OBTENER API KEY DE LAS VARIABLES DE ENTORNO ---
+# La aplicación buscará una variable de entorno llamada OPENAI_API_KEY
+# En Streamlit Community Cloud, esta se configura en los "Secrets" del espacio de la app.
+openai_api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+
+
 # --- CACHES PARA MEJORAR RENDIMIENTO ---
 @st.cache_data(show_spinner="Extrayendo conceptos...")
 def get_conceptos(pregunta: str):
@@ -87,8 +94,7 @@ st.markdown(
 # --- SIDEBAR: INPUTS DEL USUARIO ---
 st.sidebar.header("⚙️ Configuración del árbol")
 
-# Campo para la clave de API de OpenAI
-openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password", help="Introduce tu clave de API de OpenAI para activar la generación de contexto.")
+# ELIMINADO: El campo para la clave de API ya no es necesario en la interfaz.
 
 pregunta_input = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
@@ -153,15 +159,15 @@ def contar_nodos(tree):
 def contar_respondidos():
     return len(st.session_state.tracker)
 
-def generar_todo(tree, api_key):
-    if not api_key:
-        st.error("Por favor, introduce una clave de API de OpenAI para generar el contexto.")
+def generar_todo(tree):
+    if not openai_api_key:
+        st.error("La clave de API de OpenAI no está configurada en las variables de entorno. No se puede generar contexto.")
         return
     with st.spinner("Generando contexto para TODOS los nodos con OpenAI..."):
         def gen(hijos):
             for nodo, subhijos in hijos.items():
                 if not esta_respondido(nodo):
-                    data = generar_contexto(nodo, openai_api_key=api_key)
+                    data = generar_contexto(nodo, openai_api_key=openai_api_key)
                     st.session_state.tracker.append({
                         "Subpregunta": nodo,
                         "Contexto": data["contexto"],
@@ -171,7 +177,7 @@ def generar_todo(tree, api_key):
                 gen(subhijos)
         for raiz, hijos in tree.items():
             if not esta_respondido(raiz):
-                data = generar_contexto(raiz, openai_api_key=api_key)
+                data = generar_contexto(raiz, openai_api_key=openai_api_key)
                 st.session_state.tracker.append({
                     "Subpregunta": raiz,
                     "Contexto": data["contexto"],
@@ -204,26 +210,31 @@ def get_node_font_color(nodo):
 
 def construir_grafo_gv(tree_dict, dot):
     """Función recursiva para construir el grafo Graphviz."""
+    # MODIFICADO: Aumentamos el tamaño de la fuente para los nodos
+    font_size = "16"
     for parent, children in tree_dict.items():
         dot.node(parent, parent, shape='box', style='filled',
                  fillcolor=get_node_color(parent),
                  fontcolor=get_node_font_color(parent),
-                 fontname="Arial", fontsize="10")
+                 fontname="Arial", fontsize=font_size)
         for child, sub_children in children.items():
             dot.node(child, child, shape='box', style='filled',
                      fillcolor=get_node_color(child),
                      fontcolor=get_node_font_color(child),
-                     fontname="Arial", fontsize="10")
+                     fontname="Arial", fontsize=font_size)
             dot.edge(parent, child, color="#6c757d")
             construir_grafo_gv({child: sub_children}, dot)
 
 def mostrar_grafo(tree):
     """Prepara y muestra el grafo con Graphviz."""
     dot = graphviz.Digraph(comment='Árbol de Razonamiento')
-    dot.attr(rankdir='TB')
-    dot.attr('node', shape='box', style='filled', fontname="Arial", fontsize="10")
+    # MODIFICADO: Aumentamos el DPI para escalar todo el gráfico y hacerlo más grande
+    dot.attr(rankdir='TB', dpi='150')
+    dot.attr('node', shape='box', style='filled', fontname="Arial")
     dot.attr('edge', color="#6c757d")
+    
     construir_grafo_gv(tree, dot)
+
     if dot.body:
         st.graphviz_chart(dot, use_container_width=True)
         st.caption("Este es un grafo estático. Use la vista de texto inferior para interactuar.")
@@ -261,9 +272,6 @@ mostrar_grafo(tree)
 
 # --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
 with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
-    # APLICADA LA CORRECCIÓN AQUÍ:
-    # Se inicializa un contador para las claves de los botones fuera del bucle de renderizado.
-    # Usamos una lista para que sea mutable y pueda ser modificada por la función anidada.
     key_counter = [0]
     
     for raiz, hijos in tree.items():
@@ -284,7 +292,6 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                     elif fuente_texto:
                         st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
                 else:
-                    # Usamos el contador para garantizar una clave única.
                     unique_key = f"gen_button_{key_counter[0]}"
                     key_counter[0] += 1
                     
@@ -313,12 +320,15 @@ resp = contar_respondidos()
 colp, colb = st.columns([6,4])
 ratio = resp/total if total else 0
 colp.progress(min(max(ratio, 0.0), 1.0), text=f"Progreso: {resp}/{total}")
-colb.button("🧠 Generar TODO el contexto", on_click=generar_todo, args=(tree, openai_api_key), type="primary", use_container_width=True, disabled=not openai_api_key)
+colb.button("🧠 Generar TODO el contexto", on_click=generar_todo, args=(tree,), type="primary", use_container_width=True, disabled=not openai_api_key)
 
 st.divider()
 
 # Tracker, Métricas y Descargas
 st.subheader("📊 Reasoning Tracker y Métricas")
+if not openai_api_key:
+    st.warning("La generación de contexto está deshabilitada. Por favor, configure la clave de API de OpenAI en las variables de entorno (Secrets) para habilitarla.")
+
 if resp > 0:
     df = pd.DataFrame(st.session_state.tracker)
     validada_count = df[df["Validación"] == "validada"].shape[0]
@@ -370,7 +380,7 @@ if resp > 0:
     else:
         d_col4.info("PDF no disponible (falta WeasyPrint)")
 
-else:
+elif openai_api_key:
     st.info("Aún no hay pasos registrados. Genere contexto para algún nodo del árbol.")
 
 st.divider()
