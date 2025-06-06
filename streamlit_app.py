@@ -261,14 +261,14 @@ mostrar_grafo(tree)
 
 # --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
 with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
+    # APLICADA LA CORRECCIÓN AQUÍ:
+    # Se inicializa un contador para las claves de los botones fuera del bucle de renderizado.
+    # Usamos una lista para que sea mutable y pueda ser modificada por la función anidada.
+    key_counter = [0]
+    
     for raiz, hijos in tree.items():
-        # APLICADA LA CORRECCIÓN AQUÍ:
-        # La función ahora acepta un 'path_prefix' para crear claves únicas.
-        def mostrar_detalle(nodo, sub, nivel=0, path_prefix=""):
+        def mostrar_detalle(nodo, sub, nivel=0):
             margen = "  " * nivel
-            # Creamos una ruta única para el nodo actual. Usamos hash para acortar la clave.
-            current_path = f"{path_prefix}_{hash(nodo)}"
-            
             data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
             with st.container():
                 c1, c2 = st.columns([0.9, 0.1])
@@ -284,8 +284,11 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                     elif fuente_texto:
                         st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
                 else:
-                    # Usamos la nueva ruta única para la clave del botón.
-                    if st.button(f"🧠 Generar contexto", key=f"gen_{current_path}", disabled=not openai_api_key):
+                    # Usamos el contador para garantizar una clave única.
+                    unique_key = f"gen_button_{key_counter[0]}"
+                    key_counter[0] += 1
+                    
+                    if st.button(f"🧠 Generar contexto", key=unique_key, disabled=not openai_api_key):
                         with st.spinner(f"Generando contexto para '{nodo}' con OpenAI..."):
                             nuevo = generar_contexto(nodo, openai_api_key=openai_api_key)
                             st.session_state.tracker.append({
@@ -297,12 +300,10 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                         st.rerun()
                 st.markdown(f"{margen}---")
             
-            # Pasamos el nuevo prefijo de ruta a las llamadas recursivas.
             for h, s in sub.items():
-                mostrar_detalle(h, s, nivel+1, path_prefix=current_path)
+                mostrar_detalle(h, s, nivel+1)
         
-        # La llamada inicial comienza con la raíz.
-        mostrar_detalle(raiz, hijos, nivel=0, path_prefix="root")
+        mostrar_detalle(raiz, hijos, nivel=0)
 
 st.divider()
 
