@@ -1,82 +1,169 @@
-# File: cd_modules/core/contextual_generator.py
+import streamlit as st
+import pandas as pd
+import json
+import graphviz
 
+# ... (resto de imports sin cambios)
+from cd_modules.core.extractor_conceptual import extraer_conceptos
+from cd_modules.core.inquiry_engine import InquiryEngine
+from cd_modules.core.contextual_generator import generar_contexto
 from cd_modules.core.pathrag_pi import recuperar_fragmentos
-from cd_modules.core.validador_epistemico import validar_contexto
 
-# Imports para la integración con OpenAI
-from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.schema.output_parser import StrOutputParser
+# --- CONFIGURACIÓN INICIAL ---
+st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
+st.title("📚 Demo MVP - Derecho de la Propiedad Intelectual")
+st.markdown("Esta demo simula razonamiento jurídico automatizado, con validación epistémica visible.")
+
+# ... (Guía para el evaluador sin cambios)
+
+# --- CACHES PARA MEJORAR RENDIMIENTO ---
+# ... (get_conceptos, get_fragmentos, get_tree sin cambios)
+@st.cache_data(show_spinner="Extrayendo conceptos...")
+def get_conceptos(pregunta: str):
+    return extraer_conceptos(pregunta)
+
+@st.cache_data(show_spinner="Recuperando fragmentos...")
+def get_fragmentos(pregunta: str, top_k: int = 3):
+    return recuperar_fragmentos(pregunta, top_k)
+
+@st.cache_data(show_spinner="Generando árbol de razonamiento...")
+def get_tree(pregunta: str, max_depth: int, max_width: int):
+    ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
+    return ie.generate()
 
 
-def generar_contexto(nodo: str, openai_api_key: str) -> dict:
-    """
-    Genera el contexto legal para un nodo usando un pipeline RAG con OpenAI.
+# --- DECLARACIÓN DE VALOR (sin cambios) ---
+# ...
 
-    :param nodo: Subpregunta o concepto a contextualizar.
-    :param openai_api_key: La clave de API para autenticarse con OpenAI.
-    :return: Diccionario con el contexto generado por la IA, la fuente y la validación.
-    """
-    # 1. RECUPERACIÓN (Retrieval): Obtenemos los fragmentos de nuestra base de datos simulada.
-    frags = recuperar_fragmentos(nodo, top_k=2) # Recuperamos 2 para dar más contexto
-    
-    if frags:
-        # Preparamos el contexto recuperado para pasarlo al modelo
-        contexto_rag = "\n\n".join([f"Fuente: {f['titulo']}\nFragmento: {f['fragmento']}" for f in frags])
-        fuentes_combinadas = ", ".join([f['titulo'] for f in frags])
-        urls = frags[0]['url'] # Tomamos la primera URL como referencia principal
-    else:
-        # Si no hay fragmentos, no podemos generar un contexto fundamentado
-        return {
-            "contexto": "No se encontró información relevante en las fuentes para responder a esta pregunta.",
-            "fuente": "",
-            "validacion": "no validada",
-            "camino": []
-        }
+# --- SIDEBAR: INPUTS DEL USUARIO ---
+st.sidebar.header("⚙️ Configuración del árbol")
 
-    # 2. GENERACIÓN (Generation): Usamos LangChain y OpenAI para generar la respuesta.
+# AÑADIDO: Campo para la clave de API de OpenAI
+openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password", help="Introduce tu clave de API de OpenAI para activar la generación de contexto.")
 
-    # Definimos la plantilla del prompt. Es una instrucción clara para la IA.
-    template = """
-    Eres un asistente legal experto en Derecho de la Propiedad Intelectual en España.
-    Tu tarea es responder a la pregunta del usuario de forma clara, técnica y concisa.
-    Usa EXCLUSIVAMENTE la información proporcionada en los siguientes "Fragmentos de fuentes".
-    No añadas ninguna información que no provenga directamente de estos textos.
-    Si los fragmentos no son suficientes para responder, indícalo explícitamente.
+pregunta_input = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
+max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
+max_width = st.sidebar.slider("Anchura", 1, 4, 2)
+example = st.sidebar.selectbox(
+    "Ejemplos de consulta",
+    ["Ninguno", "Patente software IA", "Marca sonora España", "Convenios internacionales derechos autor"]
+)
 
-    Fragmentos de fuentes:
-    {contexto_rag}
-
-    Pregunta del usuario:
-    {pregunta}
-
-    Respuesta:
-    """
-    prompt = PromptTemplate(
-        input_variables=["contexto_rag", "pregunta"],
-        template=template
-    )
-
-    # Inicializamos el modelo de OpenAI
-    # Usamos una temperatura de 0.0 para que sea lo más determinista y objetivo posible
-    modelo = ChatOpenAI(temperature=0.0, model="gpt-4o", openai_api_key=openai_api_key)
-
-    # Creamos el pipeline (chain) de LangChain
-    chain = prompt | modelo | StrOutputParser()
-
-    # Invocamos la cadena con la pregunta y el contexto recuperado
-    contexto_generado = chain.invoke({
-        "contexto_rag": contexto_rag,
-        "pregunta": nodo
-    })
-
-    # 3. VALIDACIÓN: Realizamos la validación sobre el texto original recuperado, no sobre el generado.
-    # Esto mantiene la objetividad de la validación sobre la fuente.
-    validacion = validar_contexto(nodo, contexto_rag)
-
-    return {
-        "contexto": contexto_generado,
-        "fuente": f"{fuentes_combinadas} (vía {urls})",
-        "validacion": validacion,
-        "camino": [f['titulo'] for f in frags]
+if example != "Ninguno":
+    templates = {
+        "Patente software IA": "¿Es patentable un software de IA para reconocimiento de voz en España?",
+        "Marca sonora España": "¿Qué protección tiene una marca sonora registrada en España?",
+        "Convenios internacionales derechos autor": "¿Qué convenios internacionales regulan el derecho de autor en España?"
     }
+    pregunta = templates[example]
+else:
+    pregunta = pregunta_input
+
+# --- EJECUCIÓN DEL PIPELINE ---
+conceptos = get_conceptos(pregunta)
+frags = get_fragmentos(pregunta, top_k=3)
+tree = get_tree(pregunta, max_depth, max_width)
+
+# --- Sesión para tracker (sin cambios) ---
+# ...
+
+# --- Funciones Auxiliares (sin cambios) ---
+# ...
+
+def generar_todo(tree, api_key): # MODIFICADO: Acepta la API Key
+    if not api_key:
+        st.error("Por favor, introduce una clave de API de OpenAI para generar el contexto.")
+        return
+    with st.spinner("Generando contexto para TODOS los nodos con OpenAI..."):
+        def gen(hijos):
+            for nodo, subhijos in hijos.items():
+                if not esta_respondido(nodo):
+                    data = generar_contexto(nodo, openai_api_key=api_key) # MODIFICADO
+                    st.session_state.tracker.append({
+                        "Subpregunta": nodo,
+                        "Contexto": data["contexto"],
+                        "Fuente": data["fuente"],
+                        "Validación": data.get("validacion", "no validada")
+                    })
+                gen(subhijos)
+        for raiz, hijos in tree.items():
+            if not esta_respondido(raiz):
+                data = generar_contexto(raiz, openai_api_key=api_key) # MODIFICADO
+                st.session_state.tracker.append({
+                    "Subpregunta": raiz,
+                    "Contexto": data["contexto"],
+                    "Fuente": data["fuente"],
+                    "Validación": data.get("validacion", "no validada")
+                })
+            gen(hijos)
+    st.rerun()
+
+# --- Funciones para Grafo (sin cambios) ---
+# ...
+
+# --- BOTÓN DE REINICIO (sin cambios) ---
+# ...
+
+# --- Renderizado de la App ---
+st.divider()
+
+col_izq, col_der = st.columns(2)
+# ... (Conceptos y Fragmentos sin cambios)
+
+st.divider()
+st.subheader("🌳 Árbol de Razonamiento Jurídico")
+mostrar_grafo(tree)
+
+# --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
+with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
+    for raiz, hijos in tree.items():
+        def mostrar_detalle(nodo, sub, nivel=0):
+            # ... (Lógica de visualización del nodo sin cambios)
+            margen = "  " * nivel
+            data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
+            with st.container():
+                c1, c2 = st.columns([0.9, 0.1])
+                c1.markdown(f"{margen}🔹 **{nodo}**")
+                if data:
+                    c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
+                st.markdown(f"{margen}---")
+                if data:
+                    st.info(f"{margen}📘 *{data['Contexto']}*")
+                    fuente_texto = data.get('Fuente', '')
+                    if fuente_texto and fuente_texto.startswith("http"):
+                        st.markdown(f"{margen}🔗 **Fuente:** [{fuente_texto}]({fuente_texto})")
+                    elif fuente_texto:
+                        st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
+                else:
+                    # MODIFICADO: Se deshabilita el botón si no hay API Key
+                    if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}", disabled=not openai_api_key):
+                        with st.spinner(f"Generando contexto para '{nodo}' con OpenAI..."):
+                            nuevo = generar_contexto(nodo, openai_api_key=openai_api_key) # MODIFICADO
+                            st.session_state.tracker.append({
+                                "Subpregunta": nodo,
+                                "Contexto": nuevo["contexto"],
+                                "Fuente": nuevo["fuente"],
+                                "Validación": nuevo.get("validacion","no validada")
+                            })
+                        st.rerun()
+                st.markdown(f"{margen}---")
+
+            for h, s in sub.items():
+                mostrar_detalle(h, s, nivel+1)
+        mostrar_detalle(raiz, hijos)
+
+# ... (Resto de la app con una modificación clave en el botón "Generar TODO")
+st.divider()
+
+total = contar_nodos(tree)
+resp = contar_respondidos()
+colp, colb = st.columns([6,4])
+ratio = resp/total if total else 0
+colp.progress(min(max(ratio, 0.0), 1.0), text=f"Progreso: {resp}/{total}")
+
+# MODIFICADO: Se deshabilita el botón si no hay API Key y se le pasa la key
+colb.button("🧠 Generar TODO el contexto", on_click=generar_todo, args=(tree, openai_api_key), type="primary", use_container_width=True, disabled=not openai_api_key)
+
+st.divider()
+
+# ... (El resto del fichero de la app no tiene más cambios)
