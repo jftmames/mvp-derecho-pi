@@ -14,8 +14,7 @@ except ImportError:
 from cd_modules.core.extractor_conceptual import extraer_conceptos
 from cd_modules.core.inquiry_engine import InquiryEngine
 from cd_modules.core.contextual_generator import generar_contexto
-# ELIMINADO: ya no se usa recuperar_fragmentos en este flujo
-# from cd_modules.core.pathrag_pi import recuperar_fragmentos
+from cd_modules.core.pathrag_pi import recuperar_fragmentos
 
 # --- CONFIGURACIÓN INICIAL ---
 st.set_page_config(page_title="Demo PI - Código Deliberativo", layout="wide")
@@ -171,7 +170,10 @@ def construir_grafo_gv(tree_dict, dot):
 def mostrar_grafo(tree):
     """Prepara y muestra el grafo con Graphviz."""
     dot = graphviz.Digraph(comment='Árbol de Razonamiento')
-    dot.attr(rankdir='TB', dpi='150')
+    
+    # MODIFICADO: Se añade 'center=true' y se ajusta el DPI para mejor visualización.
+    dot.attr(rankdir='TB', dpi='130', center='true')
+    
     dot.attr('node', shape='box', style='filled', fontname="Arial")
     dot.attr('edge', color="#6c757d")
     
