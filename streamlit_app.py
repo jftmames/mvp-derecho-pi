@@ -262,8 +262,13 @@ mostrar_grafo(tree)
 # --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
 with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
     for raiz, hijos in tree.items():
-        def mostrar_detalle(nodo, sub, nivel=0):
+        # APLICADA LA CORRECCIÓN AQUÍ:
+        # La función ahora acepta un 'path_prefix' para crear claves únicas.
+        def mostrar_detalle(nodo, sub, nivel=0, path_prefix=""):
             margen = "  " * nivel
+            # Creamos una ruta única para el nodo actual. Usamos hash para acortar la clave.
+            current_path = f"{path_prefix}_{hash(nodo)}"
+            
             data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
             with st.container():
                 c1, c2 = st.columns([0.9, 0.1])
@@ -279,9 +284,9 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                     elif fuente_texto:
                         st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
                 else:
-                    if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}", disabled=not openai_api_key):
+                    # Usamos la nueva ruta única para la clave del botón.
+                    if st.button(f"🧠 Generar contexto", key=f"gen_{current_path}", disabled=not openai_api_key):
                         with st.spinner(f"Generando contexto para '{nodo}' con OpenAI..."):
-                            # APLICADA LA CORRECCIÓN AQUÍ
                             nuevo = generar_contexto(nodo, openai_api_key=openai_api_key)
                             st.session_state.tracker.append({
                                 "Subpregunta": nodo,
@@ -291,9 +296,13 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
                             })
                         st.rerun()
                 st.markdown(f"{margen}---")
+            
+            # Pasamos el nuevo prefijo de ruta a las llamadas recursivas.
             for h, s in sub.items():
-                mostrar_detalle(h, s, nivel+1)
-        mostrar_detalle(raiz, hijos)
+                mostrar_detalle(h, s, nivel+1, path_prefix=current_path)
+        
+        # La llamada inicial comienza con la raíz.
+        mostrar_detalle(raiz, hijos, nivel=0, path_prefix="root")
 
 st.divider()
 
