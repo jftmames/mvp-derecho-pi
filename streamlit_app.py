@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-import graphviz  # Importamos Graphviz
+import graphviz
 
 # Intentamos importar weasyprint para PDF; si no está, lo ignoramos
 try:
@@ -57,15 +57,15 @@ with st.expander("ℹ️ Guía para el Evaluador (ANECA) - Haga clic para expand
 # --- FIN GUÍA ---
 
 # --- CACHES PARA MEJORAR RENDIMIENTO ---
-@st.cache_data(show_spinner="Extrayendo conceptos...") # Añadido Spinner
+@st.cache_data(show_spinner="Extrayendo conceptos...")
 def get_conceptos(pregunta: str):
     return extraer_conceptos(pregunta)
 
-@st.cache_data(show_spinner="Recuperando fragmentos...") # Añadido Spinner
+@st.cache_data(show_spinner="Recuperando fragmentos...")
 def get_fragmentos(pregunta: str, top_k: int = 3):
     return recuperar_fragmentos(pregunta, top_k)
 
-@st.cache_data(show_spinner="Generando árbol de razonamiento...") # Modificado
+@st.cache_data(show_spinner="Generando árbol de razonamiento...")
 def get_tree(pregunta: str, max_depth: int, max_width: int):
     ie = InquiryEngine(pregunta, max_depth=max_depth, max_width=max_width)
     return ie.generate()
@@ -86,6 +86,10 @@ st.markdown(
 
 # --- SIDEBAR: INPUTS DEL USUARIO ---
 st.sidebar.header("⚙️ Configuración del árbol")
+
+# Campo para la clave de API de OpenAI
+openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password", help="Introduce tu clave de API de OpenAI para activar la generación de contexto.")
+
 pregunta_input = st.sidebar.text_input("Pregunta principal", "¿Quién puede ser autor de una obra?")
 max_depth = st.sidebar.slider("Profundidad", 1, 3, 2)
 max_width = st.sidebar.slider("Anchura", 1, 4, 2)
@@ -149,12 +153,15 @@ def contar_nodos(tree):
 def contar_respondidos():
     return len(st.session_state.tracker)
 
-def generar_todo(tree):
-    with st.spinner("Generando contexto para TODOS los nodos..."): # Añadido Spinner
+def generar_todo(tree, api_key):
+    if not api_key:
+        st.error("Por favor, introduce una clave de API de OpenAI para generar el contexto.")
+        return
+    with st.spinner("Generando contexto para TODOS los nodos con OpenAI..."):
         def gen(hijos):
             for nodo, subhijos in hijos.items():
                 if not esta_respondido(nodo):
-                    data = generar_contexto(nodo)
+                    data = generar_contexto(nodo, openai_api_key=api_key)
                     st.session_state.tracker.append({
                         "Subpregunta": nodo,
                         "Contexto": data["contexto"],
@@ -164,7 +171,7 @@ def generar_todo(tree):
                 gen(subhijos)
         for raiz, hijos in tree.items():
             if not esta_respondido(raiz):
-                data = generar_contexto(raiz)
+                data = generar_contexto(raiz, openai_api_key=api_key)
                 st.session_state.tracker.append({
                     "Subpregunta": raiz,
                     "Contexto": data["contexto"],
@@ -172,64 +179,56 @@ def generar_todo(tree):
                     "Validación": data.get("validacion", "no validada")
                 })
             gen(hijos)
-    st.rerun() # Añadido rerun para refrescar
+    st.rerun()
 
-# --- BLOQUE DE CÓDIGO MOVIDO ---
 # --- Funciones para Grafo (Versión Graphviz) ---
 def get_node_color(nodo):
     """Obtiene el color del nodo según su estado de validación."""
     data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
     if data:
         val = data.get("Validación", "no validada")
-        if val == "validada": return "#D4EDDA"  # Verde claro
-        elif val == "parcial": return "#FFF3CD"  # Amarillo claro
-        else: return "#F8D7DA"  # Rojo claro
-    return "#E9ECEF" # Gris claro (Pendiente)
+        if val == "validada": return "#D4EDDA"
+        elif val == "parcial": return "#FFF3CD"
+        else: return "#F8D7DA"
+    return "#E9ECEF"
 
 def get_node_font_color(nodo):
     """Obtiene el color de la fuente para mejor contraste."""
     data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
     if data:
         val = data.get("Validación", "no validada")
-        if val == "validada": return "#155724"  # Verde oscuro
-        elif val == "parcial": return "#856404"  # Amarillo oscuro
-        else: return "#721c24"  # Rojo oscuro
-    return "#495057" # Gris oscuro
+        if val == "validada": return "#155724"
+        elif val == "parcial": return "#856404"
+        else: return "#721c24"
+    return "#495057"
 
 def construir_grafo_gv(tree_dict, dot):
     """Función recursiva para construir el grafo Graphviz."""
     for parent, children in tree_dict.items():
-        # Añadir nodo padre con colores
         dot.node(parent, parent, shape='box', style='filled',
                  fillcolor=get_node_color(parent),
                  fontcolor=get_node_font_color(parent),
                  fontname="Arial", fontsize="10")
-
-        # Procesar hijos
         for child, sub_children in children.items():
             dot.node(child, child, shape='box', style='filled',
                      fillcolor=get_node_color(child),
                      fontcolor=get_node_font_color(child),
                      fontname="Arial", fontsize="10")
-            dot.edge(parent, child, color="#6c757d") # Color gris para aristas
+            dot.edge(parent, child, color="#6c757d")
             construir_grafo_gv({child: sub_children}, dot)
 
 def mostrar_grafo(tree):
     """Prepara y muestra el grafo con Graphviz."""
     dot = graphviz.Digraph(comment='Árbol de Razonamiento')
-    dot.attr(rankdir='TB') # Layout de Arriba a Abajo (Top to Bottom)
+    dot.attr(rankdir='TB')
     dot.attr('node', shape='box', style='filled', fontname="Arial", fontsize="10")
     dot.attr('edge', color="#6c757d")
-
     construir_grafo_gv(tree, dot)
-
     if dot.body:
-        st.graphviz_chart(dot, use_container_width=True) # Ajustado
+        st.graphviz_chart(dot, use_container_width=True)
         st.caption("Este es un grafo estático. Use la vista de texto inferior para interactuar.")
     else:
         st.info("El árbol de razonamiento está vacío.")
-# --- FIN Funciones para Grafo (Versión Graphviz) ---
-# --- FIN DEL BLOQUE MOVIDO ---
 
 # --- BOTÓN DE REINICIO ---
 st.sidebar.markdown("---")
@@ -238,17 +237,14 @@ if st.sidebar.button("🗑️ Reiniciar Deliberación"):
     st.rerun()
 
 # --- Renderizado de la App ---
-st.divider() # Añadir separador
+st.divider()
 
 col_izq, col_der = st.columns(2)
-
 with col_izq:
-    # 1) Conceptos
     st.subheader("🧩 Conceptos extraídos (NLP)")
     st.write(conceptos or "—")
 
 with col_der:
-    # 2) Fragmentos RAG
     st.subheader("🔍 Fragmentos recuperados (PathRAG)")
     st.caption("Estos son ejemplos de fragmentos recuperados por nuestro sistema PathRAG (actualmente simulado).")
     if frags:
@@ -259,14 +255,9 @@ with col_der:
     else:
         st.info("No se recuperaron fragmentos relevantes.")
 
-st.divider() # Añadir separador
-
-# 3) Árbol de razonamiento y Acciones
+st.divider()
 st.subheader("🌳 Árbol de Razonamiento Jurídico")
-
-# --- MOSTRAR GRAFO ---
 mostrar_grafo(tree)
-# --- FIN MOSTRAR GRAFO ---
 
 # --- MOSTRAR DETALLES Y ACCIONES (VISTA TEXTO) ---
 with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
@@ -275,71 +266,54 @@ with st.expander("🔍 Ver Detalles y Generar Contexto (Vista de Texto)"):
             margen = "  " * nivel
             data = next((x for x in st.session_state.tracker if x["Subpregunta"] == nodo), None)
             with st.container():
-                c1, c2 = st.columns([0.9, 0.1]) # Ajustado
+                c1, c2 = st.columns([0.9, 0.1])
                 c1.markdown(f"{margen}🔹 **{nodo}**")
                 if data:
                     c2.markdown(badge_validacion(data["Validación"]), unsafe_allow_html=True)
-
-                st.markdown(f"{margen}---") # Separador visual
-
+                st.markdown(f"{margen}---")
                 if data:
                     st.info(f"{margen}📘 *{data['Contexto']}*")
-                    fuente_texto = data.get('Fuente', '') # Usamos .get para seguridad
+                    fuente_texto = data.get('Fuente', '')
                     if fuente_texto and fuente_texto.startswith("http"):
                         st.markdown(f"{margen}🔗 **Fuente:** [{fuente_texto}]({fuente_texto})")
                     elif fuente_texto:
                         st.markdown(f"{margen}🔗 **Fuente:** {fuente_texto}")
                 else:
-                    # Usar columnas para alinear el botón
-                    col_margen_str = "&emsp;" * nivel * 2 # Usar espacios HTML
-                    with st.container(): # Contenedor para alinear
-                         if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}"):
-                            with st.spinner(f"Generando contexto para '{nodo}'..."): # Añadido Spinner
-                                nuevo = generar_contexto(nodo)
-                                st.session_state.tracker.append({
-                                    "Subpregunta": nodo,
-                                    "Contexto": nuevo["contexto"],
-                                    "Fuente": nuevo["fuente"],
-                                    "Validación": nuevo.get("validacion","no validada")
-                                })
-                            st.rerun() # Usamos rerun
-
-                st.markdown(f"{margen}---") # Separador visual
-
+                    if st.button(f"🧠 Generar contexto", key=f"gen_{nodo}", disabled=not openai_api_key):
+                        with st.spinner(f"Generando contexto para '{nodo}' con OpenAI..."):
+                            # APLICADA LA CORRECCIÓN AQUÍ
+                            nuevo = generar_contexto(nodo, openai_api_key=openai_api_key)
+                            st.session_state.tracker.append({
+                                "Subpregunta": nodo,
+                                "Contexto": nuevo["contexto"],
+                                "Fuente": nuevo["fuente"],
+                                "Validación": nuevo.get("validacion","no validada")
+                            })
+                        st.rerun()
+                st.markdown(f"{margen}---")
             for h, s in sub.items():
                 mostrar_detalle(h, s, nivel+1)
-
         mostrar_detalle(raiz, hijos)
-# --- FIN DETALLES Y ACCIONES ---
 
-st.divider() # Añadir separador
+st.divider()
 
-# 4) Barra de progreso y botón global
+# Barra de progreso y botón global
 total = contar_nodos(tree)
 resp = contar_respondidos()
-colp, colb = st.columns([6,4]) # Ajustado
+colp, colb = st.columns([6,4])
 ratio = resp/total if total else 0
 colp.progress(min(max(ratio, 0.0), 1.0), text=f"Progreso: {resp}/{total}")
-colb.button("🧠 Generar TODO el contexto", on_click=generar_todo, args=(tree,), type="primary", use_container_width=True) # Ajustado
+colb.button("🧠 Generar TODO el contexto", on_click=generar_todo, args=(tree, openai_api_key), type="primary", use_container_width=True, disabled=not openai_api_key)
 
+st.divider()
 
-st.divider() # Añadir separador
-
-# 5) Tracker, Métricas y Descargas
+# Tracker, Métricas y Descargas
 st.subheader("📊 Reasoning Tracker y Métricas")
-
 if resp > 0:
     df = pd.DataFrame(st.session_state.tracker)
-
-    # --- CÁLCULO DE MÉTRICAS ---
     validada_count = df[df["Validación"] == "validada"].shape[0]
     parcial_count = df[df["Validación"] == "parcial"].shape[0]
-    # no_validada_count = df[df["Validación"] == "no validada"].shape[0]
-
-    # EEE Simplificado: % de nodos respondidos con algún nivel de validación (>= Parcial)
     eee_score = ((validada_count + parcial_count) / resp * 100) if resp > 0 else 0
-
-    # --- MOSTRAR MÉTRICAS ---
     st.markdown("#### Resumen del Proceso Deliberativo:")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Nodos Totales", f"{total}")
@@ -364,20 +338,16 @@ if resp > 0:
             """
         )
 
-    # --- MOSTRAR TABLA ---
     st.markdown("#### Detalle del Reasoning Tracker:")
     st.dataframe(df, use_container_width=True)
-
-    # --- MOSTRAR DESCARGAS ---
     st.markdown("#### Opciones de Exportación:")
-    csv = df.to_csv(index=False).encode('utf-8') # Asegurar UTF-8
+    csv = df.to_csv(index=False).encode('utf-8')
     md_content = "# Informe de Razonamiento\n" + "\n".join(
         f"- **{r['Subpregunta']}**: {r['Contexto']} (Fuente: {r['Fuente']}, Val: {r['Validación']})"
         for r in st.session_state.tracker
     )
-    md = md_content.encode('utf-8') # Asegurar UTF-8
-    js = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False).encode('utf-8') # Asegurar UTF-8
-
+    md = md_content.encode('utf-8')
+    js = json.dumps(st.session_state.tracker, indent=2, ensure_ascii=False).encode('utf-8')
     d_col1, d_col2, d_col3, d_col4 = st.columns(4)
     d_col1.download_button("📥 CSV", data=csv, file_name="tracker.csv", mime="text/csv", use_container_width=True)
     d_col2.download_button("📥 MD", data=md, file_name="informe.md", mime="text/markdown", use_container_width=True)
@@ -393,9 +363,9 @@ if resp > 0:
 else:
     st.info("Aún no hay pasos registrados. Genere contexto para algún nodo del árbol.")
 
-st.divider() # Añadir separador
+st.divider()
 
-# 6) Ayudas
+# Ayudas
 with st.expander("📘 ¿Qué es la validación epistémica?"):
     st.markdown(
         """
