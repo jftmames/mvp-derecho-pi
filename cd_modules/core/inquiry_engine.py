@@ -1,56 +1,87 @@
-# cd_modules/core/inquiry_engine.py
-
-from cd_modules.core.extractor_conceptual import extraer_conceptos
-import itertools
-
-# Plantillas de preguntas jurídicas para generar sub-preguntas contextualmente relevantes.
-# Se sustituye la lista de ejemplos aleatorios por un sistema basado en plantillas y conceptos.
-QUESTION_TEMPLATES = [
-    "¿Cuál es la regulación específica para '{concept}' en la legislación española?",
-    "¿Qué jurisprudencia relevante del Tribunal Supremo o del TJUE existe sobre '{concept}'?",
-    "¿Qué requisitos específicos de protección se aplican a '{concept}'?",
-    "¿Cuáles son las excepciones o límites aplicables a los derechos sobre '{concept}'?",
-    "¿Cómo se protege un '{concept}' a nivel de la Unión Europea?",
-    "¿Qué tratados internacionales firmados por España afectan a la regulación de '{concept}'?"
-]
+import json
+import os
+from openai import OpenAI
+# Importamos el motor RAGA que creaste en el Sprint 1
+from cd_modules.core.raga_engine import RAGAEngine
 
 class InquiryEngine:
-    def __init__(self, pregunta, max_depth=2, max_width=2):
-        self.pregunta = pregunta
+    def __init__(self, topic, max_depth=2, max_width=2, raga_engine=None):
+        """
+        :param topic: Pregunta inicial del usuario.
+        :param raga_engine: Instancia de RAGAEngine ya cargada con datos.
+        """
+        self.topic = topic
         self.max_depth = max_depth
         self.max_width = max_width
+        self.tree = {}
+        # Si no nos pasan un motor, intentamos inicializar uno por defecto
+        self.raga = raga_engine if raga_engine else RAGAEngine()
+        
+        # Configuración del cliente OpenAI
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=api_key) if api_key else None
 
-    def _expand(self, nodo: str, depth: int) -> dict:
+    def _get_raga_context(self, query):
+        """Recupera fragmentos de ley reales para fundamentar la pregunta."""
+        if not self.raga or not self.raga.vector_store:
+            return "No hay base de conocimientos cargada. Usa conocimiento general."
+        
+        results = self.raga.retrieve(query, k=2) # Recuperamos los 2 fragmentos más relevantes
+        context_str = "\n".join([f"- (Fuente: {r['source']}): {r['content']}" for r in results])
+        return context_str
+
+    def _generate_subquestions(self, parent_question, current_depth):
+        """Genera sub-preguntas BASADAS en el contexto legal recuperado."""
+        if not self.client:
+            return ["(Error: Sin API Key)"]
+
+        # PASO CRÍTICO: GROUNDING (Anclaje)
+        # Antes de preguntar a GPT, le damos la ley.
+        contexto_legal = self._get_raga_context(parent_question)
+
+        prompt = f"""
+        Actúa como un Auditor Jurídico experto en AI Act.
+        
+        OBJETIVO: Desglosar la pregunta "{parent_question}" en {self.max_width} sub-preguntas lógicas para una auditoría.
+        
+        CONTEXTO LEGAL OBLIGATORIO (RAGA):
+        {contexto_legal}
+        
+        REGLAS:
+        1. Las sub-preguntas deben verificar si se cumple lo que dice el texto legal arriba citado.
+        2. No inventes normas. Básate solo en el contexto provisto.
+        3. Salida estrictamente en formato JSON: {{ "questions": ["¿Pregunta 1?", "¿Pregunta 2?"] }}
         """
-        Método de expansión mejorado.
-        Extrae conceptos del nodo y genera preguntas específicas usando las plantillas.
-        """
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o", # O gpt-3.5-turbo si prefieres ahorrar
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2 # Baja temperatura para mayor rigor
+            )
+            data = json.loads(response.choices[0].message.content)
+            return data.get("questions", [])
+        except Exception as e:
+            print(f"Error generando subpreguntas: {e}")
+            return []
+
+    def build_tree(self, current_node, depth):
+        """Construye el árbol recursivamente usando RAGA en cada nodo."""
         if depth >= self.max_depth:
             return {}
 
-        # 1. Extraer conceptos clave del nodo actual (pregunta)
-        conceptos = extraer_conceptos(nodo)
-        if not conceptos:
-            return {} # Si no hay conceptos, no se puede expandir
-
-        # 2. Generar todas las sub-preguntas posibles a partir de los conceptos y plantillas
-        subpreguntas_generadas = []
-        for concept in conceptos:
-            for template in QUESTION_TEMPLATES:
-                subpreguntas_generadas.append(template.format(concept=concept))
+        subquestions = self._generate_subquestions(current_node, depth)
+        branches = {}
         
-        # 3. Limitar el número de sub-preguntas según max_width para no saturar el árbol
-        # Se usa un ciclo para tomar preguntas de forma distribuida entre los conceptos
-        hijos = {}
-        preguntas_finales = list(itertools.islice(itertools.cycle(subpreguntas_generadas), self.max_width))
-        
-        for subpregunta in sorted(list(set(preguntas_finales))): # Usamos set para evitar duplicados exactos
-            hijos[subpregunta] = self._expand(subpregunta, depth + 1)
+        for sq in subquestions:
+            # Recursividad: Para cada respuesta, profundizamos
+            branches[sq] = self.build_tree(sq, depth + 1)
             
-        return hijos
+        return branches
 
     def generate(self):
-        """
-        Genera el árbol de razonamiento completo a partir de la pregunta inicial.
-        """
-        return {self.pregunta: self._expand(self.pregunta, 0)}
+        """Método principal para lanzar la generación."""
+        print(f"🌳 Iniciando Deliberación RAGA sobre: {self.topic}")
+        self.tree = {self.topic: self.build_tree(self.topic, 0)}
+        return self.tree
