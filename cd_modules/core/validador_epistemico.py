@@ -1,43 +1,60 @@
 import os
-from cd_modules.core.validador_epistemico import EroteticEvaluator
+import json
+from openai import OpenAI
 
-# os.environ["OPENAI_API_KEY"] = "sk-..."
+class EroteticEvaluator:
+    def __init__(self):
+        # Configuración del cliente (requiere OPENAI_API_KEY)
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=api_key) if api_key else None
 
-def run_test_auditor():
-    print("🚀 INICIANDO TEST DEL SPRINT 3: EL AUDITOR H-ANCHOR")
-    
-    auditor = EroteticEvaluator()
-    
-    # SIMULACIÓN DE CONTEXTO REAL (Lo que recuperó el RAGA del AI Act)
-    evidencia_real = """
-    (Fuente: Art. 5 AI Act)
-    Se prohíben las prácticas de IA que utilicen técnicas subliminales que alteren 
-    el comportamiento de una persona de manera que le cause perjuicio físico o psicológico.
-    """
-    
-    print(f"\n📄 EVIDENCIA (RAGA): {evidencia_real.strip()}")
-    
-    # CASO 1: AFIRMACIÓN FALSA (ALUCINACIÓN)
-    mentira = "El Artículo 5 permite técnicas subliminales si son para fines de marketing."
-    print(f"\n🔹 Auditando Afirmación 1 (Falsa): '{mentira}'")
-    
-    resultado1 = auditor.audit_claim(mentira, evidencia_real)
-    print(f"   👉 JUICIO: {resultado1['status'].upper()}")
-    print(f"   📝 RAZÓN: {resultado1['reason']}")
+    def audit_claim(self, claim, evidence):
+        """
+        Audita una afirmación comparándola contra la evidencia RAGA.
+        
+        :param claim: La respuesta o afirmación generada por la IA.
+        :param evidence: El texto real recuperado del PDF (contexto).
+        :return: Dict con estado (validada/no_validada) y razón.
+        """
+        if not self.client:
+            return {"status": "no validada", "reason": "Error: Sin API Key"}
 
-    # CASO 2: AFIRMACIÓN VERDADERA
-    verdad = "El uso de técnicas subliminales está prohibido si causa daño psicológico."
-    print(f"\n🔹 Auditando Afirmación 2 (Verdadera): '{verdad}'")
-    
-    resultado2 = auditor.audit_claim(verdad, evidencia_real)
-    print(f"   👉 JUICIO: {resultado2['status'].upper()}")
-    print(f"   📝 RAZÓN: {resultado2['reason']}")
+        if not evidence or len(evidence) < 10:
+            return {"status": "no validada", "reason": "Falta de evidencia documental (Grounding insuficiente)."}
 
-    # VERIFICACIÓN DEL HITO
-    if resultado1['status'] == "no validada" and resultado2['status'] == "validada":
-        print("\n✅ HITO CONSEGUIDO: El auditor distingue verdad de mentira basándose en la evidencia.")
-    else:
-        print("\n❌ FALLO: El auditor no juzgó correctamente.")
+        prompt = f"""
+        Actúa como un Auditor Forense de IA (H-ANCHOR).
+        Tu trabajo es detectar ALUCINACIONES o afirmaciones no soportadas.
+        
+        EVIDENCIA OFICIAL (GROUND TRUTH):
+        \"\"\"{evidence}\"\"\"
+        
+        AFIRMACIÓN A AUDITAR:
+        \"\"\"{claim}\"\"\"
+        
+        TAREA:
+        Verifica si la afirmación está TOTALMENTE RESPALDADA por la evidencia oficial.
+        - Si la afirmación menciona datos que NO están en la evidencia -> RECHAZAR (Rojo).
+        - Si la afirmación es una inferencia lógica correcta del texto -> VALIDAR (Verde).
+        - Si es ambigua -> PARCIAL (Amarillo).
+        
+        Salida JSON obligatoria:
+        {{
+            "status": "validada" | "parcial" | "no validada",
+            "reason": "Breve explicación técnica de 1 frase."
+        }}
+        """
 
-if __name__ == "__main__":
-    run_test_auditor()
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o", 
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.0
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            return {"status": "no validada", "reason": f"Error de auditoría: {str(e)}"}
+
+# Instancia global para facilitar importación desde streamlit_app.py
+auditor = EroteticEvaluator()
